@@ -1,0 +1,802 @@
+# OTTL Test Cases
+# 
+# These test cases are derived from the e2e_test.go and examples
+# from the OTTL playground to validate the ANTLR4 grammar.
+#
+# Format: Each test case is a single OTTL statement
+# Lines starting with # are comments
+# Blank lines separate test categories
+
+# ==============================================
+# Category 1: Basic Editor Calls
+# ==============================================
+
+# Test 1: Simple set
+set(attributes["test"], "pass")
+
+# Test 2: Delete key
+delete_key(attributes, "http.method")
+
+# Test 3: Delete matching keys with regex
+delete_matching_keys(attributes, "^http")
+
+# Test 4: Keep matching keys
+keep_matching_keys(attributes, "^http")
+
+# Test 5: Flatten attributes
+flatten(attributes)
+
+# Test 6: Flatten with prefix argument
+flatten(attributes, "test")
+
+# Test 7: Flatten with named argument
+flatten(attributes, "test", resolveConflicts=true)
+
+# Test 8: Flatten with depth
+flatten(attributes, depth=1)
+
+# Test 9: Keep specific keys
+keep_keys(attributes, ["flags", "total.string"])
+
+# Test 10: Limit attributes
+limit(attributes, 100, [])
+
+# Test 11: Limit with priority keys
+limit(attributes, 1, ["total.string"])
+
+# ==============================================
+# Category 2: Merge and Replace Operations
+# ==============================================
+
+# Test 12: Merge maps with insert strategy
+merge_maps(attributes, attributes["foo"], "insert")
+
+# Test 13: Merge maps with update strategy
+merge_maps(attributes, attributes["foo"], "update")
+
+# Test 14: Merge maps with upsert strategy
+merge_maps(attributes, attributes["foo"], "upsert")
+
+# Test 15: Merge with map literal
+merge_maps(attributes, {"map_literal": {"list": [{"foo":"bar"}, "test"]}}, "upsert")
+
+# Test 16: Replace all matches
+replace_all_matches(attributes, "*/*", "test")
+
+# Test 17: Replace all patterns on keys
+replace_all_patterns(attributes, "key", "^http", "test")
+
+# Test 18: Replace all patterns on values
+replace_all_patterns(attributes, "value", "/", "@")
+
+# Test 19: Replace single match
+replace_match(attributes["http.path"], "*/*", "test")
+
+# Test 20: Replace pattern
+replace_pattern(attributes["http.path"], "/", "@")
+
+# Test 21: Replace pattern with hash function
+replace_pattern(attributes["http.path"], "/", "@", SHA256)
+
+# ==============================================
+# Category 3: Converters and Indexing
+# ==============================================
+
+# Test 22: Converter with string indexing
+set(attributes["test"], Split(field, ",")[1])
+
+# Test 23: ParseInt with hex
+set(attributes["test"], ParseInt("0xAF", 0))
+
+# Test 24: ParseInt with decimal
+set(attributes["test"], ParseInt("12345", 10))
+
+# Test 25: ParseInt with different base
+set(attributes["test"], ParseInt("AF", 16))
+
+# Test 26: ParseCSV
+set(attributes["test"], ParseCSV("val1;val2;val3","header1|header2|header3",";","|","strict"))
+
+# Test 27: ParseCSV with named arguments
+set(attributes["test"], ParseCSV("val1,val2,val3","header1|header2|header3",headerDelimiter="|",mode="strict"))
+
+# Test 28: ParseJSON object
+set(attributes["test"], ParseJSON("{\"id\":1}"))
+
+# Test 29: ParseJSON array
+set(attributes["test"], ParseJSON("[\"value1\",\"value2\"]"))
+
+# Test 30: ParseKeyValue
+set(attributes["test"], ParseKeyValue("k1=v1 k2=v2"))
+
+# Test 31: ParseKeyValue with custom delimiters
+set(attributes["test"], ParseKeyValue("k1!v1_k2!v2", "!", "_"))
+
+# Test 32: ParseKeyValue with quoted values
+set(attributes["test"], ParseKeyValue("k1!v1_k2!\"v2__!__v2\"", "!", "_"))
+
+# Test 33: Nested converter calls
+set(attributes["test"], ToKeyValueString(ParseKeyValue("k1=v1 k2=v2"), "=", " ", true))
+
+# Test 34: ParseSimplifiedXML
+set(attributes["test"], ParseSimplifiedXML("<Log><id>1</id><Message>This is a log message!</Message></Log>"))
+
+# Test 35: ParseXML
+set(attributes["test"], ParseXML("<Log id=\"1\"><Message>This is a log message!</Message></Log>"))
+
+# Test 36: Concat converter
+set(attributes["combined"], Concat([attributes["string.attribute"], attributes["boolean.attribute"]], " "))
+
+# ==============================================
+# Category 4: WHERE Clauses
+# ==============================================
+
+# Test 37: Simple comparison
+set(attributes["test"], "pass") where name == "foo"
+
+# Test 38: AND condition
+delete_key(attributes, "key") where status == "error" and retry < 3
+
+# Test 39: OR condition
+set(severity, "HIGH") where level == "error" or level == "critical"
+
+# Test 40: NOT condition
+set(attributes["valid"], true) where not IsMatch(name, "test_.*")
+
+# Test 41: Nested conditions with parentheses
+set(flag, true) where (status == "ok" or status == "warn") and count > 0
+
+# Test 42: Comparison with nil
+delete_key(attributes, "temp") where attributes["temp"] == nil
+
+# Test 43: Not equal comparison
+set(attributes["modified"], true) where attributes["key"] != nil
+
+# Test 44: Less than comparison
+set(attributes["low"], true) where count < 10
+
+# Test 45: Less than or equal
+set(attributes["valid"], true) where retry <= 3
+
+# Test 46: Greater than comparison
+set(attributes["high"], true) where value > 100
+
+# Test 47: Greater than or equal
+set(attributes["sufficient"], true) where threshold >= 50
+
+# Test 48: WHERE with converter
+set(attributes["matched"], true) where IsMatch(name, "http_.*")
+
+# Test 49: Complex nested boolean
+set(active, true) where not (status == "inactive" or deleted == true) and verified == true
+
+# Test 50: WHERE with enum comparison
+set(attributes["server"], true) where kind == SPAN_KIND_SERVER
+
+# ==============================================
+# Category 5: Math Expressions
+# ==============================================
+
+# Test 51: Simple addition
+set(attributes["sum"], 1 + 1)
+
+# Test 52: Simple subtraction
+set(attributes["diff"], 10 - 5)
+
+# Test 53: Simple multiplication
+set(attributes["product"], 5 * 3)
+
+# Test 54: Simple division
+set(attributes["quotient"], 20 / 4)
+
+# Test 55: Mixed operations with precedence
+set(attributes["result"], 10 + 5 * 2)
+
+# Test 56: Parentheses override precedence
+set(attributes["result"], (10 + 5) * 2)
+
+# Test 57: Complex expression
+set(attributes["result"], (10 / 2) * 3 + 1)
+
+# Test 58: Path in math expression
+set(attributes["duration"], end_time - start_time)
+
+# Test 59: Function in math expression
+set(attributes["total"], sum([1, 2, 3, 4]) + 10)
+
+# Test 60: Negative numbers
+set(attributes["negative"], -100 + 50)
+
+# Test 61: Float arithmetic
+set(attributes["float_result"], 10.5 + 2.3)
+
+# Test 62: Division with floats
+set(attributes["float_div"], 7.5 / 2.5)
+
+# ==============================================
+# Category 6: Complex Values
+# ==============================================
+
+# Test 63: Empty list
+set(attributes["empty"], [])
+
+# Test 64: List with integers
+set(attributes["list"], [1, 2, 3])
+
+# Test 65: List with strings
+set(attributes["names"], ["alice", "bob", "charlie"])
+
+# Test 66: Mixed type list
+set(attributes["mixed"], ["string", 123, true, nil])
+
+# Test 67: List with expressions
+set(attributes["computed"], [1 + 1, 2 * 3, 10 / 2])
+
+# Test 68: Nested lists
+set(attributes["nested"], [[1, 2], [3, 4]])
+
+# Test 69: Empty map
+set(attributes["empty_map"], {})
+
+# Test 70: Simple map
+set(attributes["map"], {"key": "value"})
+
+# Test 71: Map with multiple entries
+set(attributes["config"], {"host": "localhost", "port": "8080"})
+
+# Test 72: Nested map
+set(attributes["nested_map"], {"outer": {"inner": "value"}})
+
+# Test 73: Map with various value types
+set(attributes["complex"], {"str": "text", "num": 42, "bool": true})
+
+# Test 74: Map with trailing comma
+set(attributes["trailing"], {"a": 1, "b": 2,})
+
+# ==============================================
+# Category 7: Paths and Keys
+# ==============================================
+
+# Test 75: Simple path with context
+set(attributes["test"], resource.attributes["key"])
+
+# Test 76: Nested string keys
+set(attributes["test"], log.attributes["nested"]["values"])
+
+# Test 77: Integer key access
+set(attributes["test"], cache["slice"][1])
+
+# Test 78: Path without context
+set(name, attributes["service.name"])
+
+# Test 79: Multiple field segments
+set(foo.bar.baz.qux, "value")
+
+# Test 80: Field with key
+set(attributes["copy"], attributes["original"])
+
+# Test 81: Path in nested structure
+set(resource.attributes["service.name"], "myservice")
+
+# Test 82: Complex path expression
+set(attributes["value"], log.attributes["data"]["items"][0])
+
+# ==============================================
+# Category 8: Literals
+# ==============================================
+
+# Test 83: String literal with spaces
+set(attributes["str"], "hello world")
+
+# Test 84: String with escaped quotes
+set(attributes["escaped"], "He said \"Hello\"")
+
+# Test 85: Positive integer
+set(attributes["int"], 42)
+
+# Test 86: Negative integer
+set(attributes["neg"], -100)
+
+# Test 87: Integer with plus sign
+set(attributes["plus"], +50)
+
+# Test 88: Float with leading digit
+set(attributes["float"], 3.14159)
+
+# Test 89: Float without leading digit
+set(attributes["float2"], .5)
+
+# Test 90: Negative float
+set(attributes["neg_float"], -2.5)
+
+# Test 91: Scientific notation positive exponent
+set(attributes["sci"], 1.5e10)
+
+# Test 92: Scientific notation negative exponent
+set(attributes["sci2"], 2.0e-5)
+
+# Test 93: Boolean true
+set(attributes["bool_t"], true)
+
+# Test 94: Boolean false
+set(attributes["bool_f"], false)
+
+# Test 95: Nil literal
+set(attributes["null"], nil)
+
+# Test 96: Byte slice hex
+set(attributes["bytes"], 0xDEADBEEF)
+
+# Test 97: Small byte slice
+set(attributes["byte"], 0x01)
+
+# ==============================================
+# Category 9: Enums
+# ==============================================
+
+# Test 98: Enum in set
+set(severity_number, SEVERITY_NUMBER_INFO)
+
+# Test 99: Enum in comparison
+set(attributes["is_server"], true) where kind == SPAN_KIND_SERVER
+
+# Test 100: Enum in comparison (client)
+set(attributes["is_client"], true) where kind == SPAN_KIND_CLIENT
+
+# Test 101: Enum with underscores
+set(log_level, LOG_LEVEL_DEBUG)
+
+# ==============================================
+# Category 10: Named Arguments
+# ==============================================
+
+# Test 102: Single named argument
+flatten(attributes, depth=1)
+
+# Test 103: Multiple named arguments
+set(attributes["test"], ParseCSV("data", "headers", headerDelimiter="|", mode="strict"))
+
+# Test 104: Mixed positional and named
+merge_maps(attributes, cache, strategy="upsert")
+
+# Test 105: All named arguments
+set(target=attributes["result"], value="computed")
+
+# ==============================================
+# Category 11: Edge Cases
+# ==============================================
+
+# Test 106: Empty function arguments
+set(attributes["test"], Random())
+
+# Test 107: Function with single argument
+set(attributes["upper"], ConvertCase("text"))
+
+# Test 108: Set to nil value
+set(attributes["test"], nil)
+
+# Test 109: Set to unknown attribute (should be nil)
+set(attributes["test"], attributes["unknown"])
+
+# Test 110: Nested field set
+set(attributes["foo"]["test"], "pass")
+
+# Test 111: Multiple dots in path
+set(a.b.c.d.e, "deep")
+
+# Test 112: String with newline escape
+set(attributes["multiline"], "line1\\nline2")
+
+# Test 113: Empty string
+set(attributes["empty"], "")
+
+# Test 114: Single character string
+set(attributes["char"], "x")
+
+# Test 115: List with single element
+set(attributes["singleton"], [42])
+
+# ==============================================
+# Category 12: Real-World Examples
+# ==============================================
+
+# Test 116: Copy body to attributes
+set(attributes["body"], body)
+
+# Test 117: Rename attribute
+set(attributes["service.new_name"], attributes["service.name"])
+
+# Test 118: Delete old attribute after rename
+delete_key(attributes, "service.name")
+
+# Test 119: Parse JSON from body
+merge_maps(cache, ParseJSON(body), "upsert") where IsMatch(body, "^\\{")
+
+# Test 120: Set timestamp from parsed data
+set(time, Time(cache["timestamp"], "%Y-%m-%dT%H:%M:%SZ"))
+
+# Test 121: Extract pattern from body
+merge_maps(attributes, ExtractPatterns(body, "Example (?P<example_type>[a-z\\.]+)"), "upsert")
+
+# Test 122: Truncate time
+set(attributes["date"], String(TruncateTime(Time(attributes["timestamp"], "%Y-%m-%dT%H:%M:%SZ"), Duration("24h"))))
+
+# Test 123: Convert case and concat
+set(resource.attributes["service.name"], ConvertCase(Concat([resource.attributes["service.name"], version], ".v"), "upper"))
+
+# Test 124: Scale metric
+scale_metric(10.0, "kWh") where name == "my.gauge"
+
+# Test 125: Dynamic metric rename
+replace_pattern(name, "my.(.+)", "metrics.$1")
+
+# Test 126: Append single value
+append(log.attributes["tags"], "prod")
+
+# Test 127: Append multiple values
+append(log.attributes["tags"], values=["staging", "staging:east"])
+
+# Test 128: Truncate all attributes
+truncate_all(attributes, 100)
+
+# Test 129: Set severity from cache
+set(severity_text, cache["level"])
+
+# Test 130: Conditional update resource attribute
+set(attributes["service.name"], "mycompany-application") where attributes["service.name"] == nil
+
+# ==============================================
+# Category 13: Security and Data Masking
+# ==============================================
+
+# Test 131: Mask sensitive URL parameters
+replace_pattern(attributes["http.url"], "client_id=[^&]+", "client_id=[REDACTED]")
+
+# Test 132: Mask client secret
+replace_pattern(attributes["http.url"], "client_secret=[^&]+", "client_secret=[REDACTED]")
+
+# Test 133: Mask password in URL
+replace_pattern(attributes["http.url"], "password=[^&]+", "password=[REDACTED]")
+
+# Test 134: Redact authorization header
+delete_key(attributes, "http.request.header.authorization")
+
+# Test 135: Mask credit card numbers
+replace_pattern(attributes["payment_info"], "\\d{4}-\\d{4}-\\d{4}-\\d{4}", "****-****-****-****")
+
+# Test 136: Mask email addresses
+replace_pattern(body, "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+
+# Test 137: Mask IP addresses
+replace_pattern(attributes["client_ip"], "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}", "192.168.1.xxx")
+
+# Test 138: Conditional data masking
+replace_pattern(attributes["user_data"], "ssn=\\d{3}-\\d{2}-\\d{4}", "ssn=[REDACTED]") where attributes["environment"] == "production"
+
+# ==============================================
+# Category 14: Complex Log Parsing Patterns
+# ==============================================
+
+# Test 139: Parse authentication log with ExtractPatterns
+merge_maps(attributes, ExtractPatterns(body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>\\S+) (?P<appname>\\S+)(\\[(?P<pid>\\d+)\\]). (?P<event>Failed password) for (invalid user )?(?P<username>\\w+) from (?P<ip_address>[\\d.]+) port (?P<port>\\d+) (?P<protocol>\\w+)$"), "upsert")
+
+# Test 140: Parse NGINX access log
+merge_maps(attributes, ExtractPatterns(body, "^(?P<client_ip>\\S+) - (?P<username>\\S+) \\[(?P<timestamp>[^\\]]+)\\] \"(?P<method>[A-Z]+) (?P<path>\\S+) (?P<protocol>[^\"]+)\" (?P<status>\\d{3}) (?P<bytes>\\d+)"), "upsert")
+
+# Test 141: Extract HTTP method and path from request
+merge_maps(attributes, ExtractPatterns(attributes["request"], "^(?P<method>\\S+) (?P<path>\\S+) (?P<version>\\S+)"), "upsert")
+
+# Test 142: Parse key-value pairs from body
+set(cache["body"], Decode(body, "utf-8"))
+
+# Test 143: Extract IP address from log body
+set(attributes, ExtractPatterns(Decode(body, "utf-8"), "(?P<ip_address>\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)"))
+
+# Test 144: Parse JSON body with flatten
+merge_maps(attributes, ParseJSON(body), "upsert") where IsMatch(body, "^\\{")
+
+# Test 145: Flatten nested cache
+flatten(cache)
+
+# Test 146: Merge flattened cache to attributes
+merge_maps(attributes, cache, "upsert")
+
+# ==============================================
+# Category 15: Attribute Key Normalization
+# ==============================================
+
+# Test 147: Replace hyphens with underscores in keys
+replace_all_patterns(attributes, "key", "-", "_")
+
+# Test 148: Replace spaces with underscores in keys
+replace_all_patterns(attributes, "key", "\\s", "_")
+
+# Test 149: Replace dots with underscores in keys
+replace_all_patterns(attributes, "key", "\\.", "_")
+
+# Test 150: Lowercase all attribute keys
+replace_all_patterns(attributes, "key", "([A-Z])", "_$1")
+
+# Test 151: Normalize multiple special characters
+replace_all_patterns(attributes, "key", "[^a-zA-Z0-9_]", "_")
+
+# ==============================================
+# Category 16: Filtering and Conditional Logic
+# ==============================================
+
+# Test 152: Filter by IsMatch function
+set(attributes["matched"], true) where IsMatch(body, "Failed password")
+
+# Test 153: NOT operator with IsMatch
+set(attributes["not_matched"], true) where not IsMatch(body, "DEBUG")
+
+# Test 154: Multiple AND conditions
+set(attributes["environment"], "production") where attributes["service.name"] == "my_service" and attributes["cluster"] == "primary"
+
+# Test 155: Multiple OR conditions
+set(attributes["severity"], "urgent") where attributes["level"] == "ERROR" or attributes["level"] == "FATAL"
+
+# Test 156: Complex nested conditions with parentheses
+set(attributes["critical"], true) where (attributes["level"] == "ERROR" or attributes["level"] == "FATAL") and attributes["env"] == "production"
+
+# Test 157: Condition with nil check
+set(attributes["has_user"], true) where attributes["user_id"] != nil
+
+# Test 158: Condition with empty string check
+set(attributes["needs_message"], true) where attributes["message"] == ""
+
+# Test 159: Combined nil and empty check
+set(attributes["valid_user"], true) where attributes["user_id"] != nil and attributes["user_id"] != ""
+
+# Test 160: Numeric comparison greater than
+set(attributes["high_priority"], true) where attributes["priority"] > 5
+
+# Test 161: Numeric comparison less than or equal
+set(attributes["low_retry"], true) where attributes["retries"] <= 3
+
+# Test 162: Nested conditions with numeric comparisons
+set(attributes["needs_escalation"], true) where attributes["priority"] == "high" and (attributes["retries"] > 5 or attributes["duration"] > 10000)
+
+# ==============================================
+# Category 17: Performance Tier Classification
+# ==============================================
+
+# Test 163: Classify slow performance
+set(attributes["service.performance.tier"], "Slow") where duration_ms > 1000
+
+# Test 164: Classify medium performance
+set(attributes["service.performance.tier"], "Medium") where duration_ms > 500 and duration_ms <= 1000
+
+# Test 165: Classify fast performance
+set(attributes["service.performance.tier"], "Fast") where duration_ms <= 500
+
+# Test 166: Set latency bucket
+set(attributes["latency_bucket"], "high") where attributes["response_time"] > 2000
+
+# Test 167: Set latency bucket medium
+set(attributes["latency_bucket"], "medium") where attributes["response_time"] > 500 and attributes["response_time"] <= 2000
+
+# Test 168: Set latency bucket low
+set(attributes["latency_bucket"], "low") where attributes["response_time"] <= 500
+
+# ==============================================
+# Category 18: Kubernetes and Cloud Metadata
+# ==============================================
+
+# Test 169: Promote pod IP to resource attributes
+set(resource.attributes["k8s.pod.ip"], attributes["k8s_pod_ip"])
+
+# Test 170: Promote namespace to resource
+set(resource.attributes["k8s.namespace"], attributes["k8s_namespace_name"])
+
+# Test 171: Promote container name
+set(resource.attributes["k8s.container.name"], attributes["k8s_container_name"])
+
+# Test 172: Set cloud provider
+set(resource.attributes["cloud.provider"], "aws")
+
+# Test 173: Extract availability zone
+set(resource.attributes["cloud.availability_zone"], attributes["ec2_availability_zone"])
+
+# ==============================================
+# Category 19: Span Kind and Context Operations
+# ==============================================
+
+# Test 174: Set server span route attribute
+set(attributes["http.route.server"], attributes["http.route"]) where kind == SPAN_KIND_SERVER
+
+# Test 175: Delete route after copying for server span
+delete_key(attributes, "http.route") where kind == SPAN_KIND_SERVER
+
+# Test 176: Set client span attribute
+set(attributes["http.route.client"], attributes["http.route"]) where kind == SPAN_KIND_CLIENT
+
+# Test 177: Check span kind enum
+set(attributes["is_server"], true) where kind == SPAN_KIND_SERVER
+
+# Test 178: Check status code enum
+set(attributes["status_ok"], true) where status.code == STATUS_CODE_OK
+
+# Test 179: Check status code error
+set(attributes["status_error"], true) where status.code == STATUS_CODE_ERROR
+
+# ==============================================
+# Category 20: Advanced Converter Functions
+# ==============================================
+
+# Test 180: Concat strings from array
+set(attributes["full_name"], Concat([attributes["first_name"], attributes["last_name"]], " "))
+
+# Test 181: ConvertCase to upper
+set(attributes["method_upper"], ConvertCase(attributes["http.method"], "upper"))
+
+# Test 182: ConvertCase to lower
+set(attributes["method_lower"], ConvertCase(attributes["http.method"], "lower"))
+
+# Test 183: Substring extraction
+set(attributes["short_id"], Substring(attributes["trace_id"], 0, 8))
+
+# Test 184: Format string with placeholders
+set(attributes["formatted"], Format("User %s logged in from %s", [attributes["username"], attributes["ip"]]))
+
+# Test 185: Split string into array
+set(attributes["tags_array"], Split(attributes["tags"], ","))
+
+# Test 186: URL parsing
+set(attributes["parsed_url"], URL(attributes["http.url"]))
+
+# Test 187: ParseJSON from string
+set(attributes["json_data"], ParseJSON(attributes["json_string"]))
+
+# Test 188: IsString type check
+set(attributes["is_string"], IsString(attributes["user_id"]))
+
+# Test 189: IsInt type check
+set(attributes["is_int"], IsInt(attributes["count"]))
+
+# Test 190: IsBool type check
+set(attributes["is_bool"], IsBool(attributes["active"]))
+
+# Test 191: IsMap type check
+set(attributes["is_map"], IsMap(attributes["metadata"]))
+
+# Test 192: IsList type check
+set(attributes["is_list"], IsList(attributes["tags"]))
+
+# ==============================================
+# Category 21: Cache Operations
+# ==============================================
+
+# Test 193: Set cache with decoded body
+set(cache["body"], Decode(body, "utf-8"))
+
+# Test 194: Extract from cached body
+set(attributes, ExtractPatterns(cache["body"], "(?P<ip_address>\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)"))
+
+# Test 195: Parse JSON to cache
+set(cache["parsed"], ParseJSON(cache["body"]))
+
+# Test 196: Set attribute from cache
+set(attributes["level"], cache["parsed"]["level"])
+
+# Test 197: Replace pattern in cache
+replace_pattern(cache["body"], "password=\\S+", "password=[REDACTED]")
+
+# Test 198: Merge cache to attributes
+merge_maps(attributes, cache, "upsert")
+
+# ==============================================
+# Category 22: Time and Duration Operations
+# ==============================================
+
+# Test 199: Parse time with format
+set(time, Time(attributes["timestamp"], "%Y-%m-%dT%H:%M:%SZ"))
+
+# Test 200: Parse time with different format
+set(time, Time(attributes["timestamp"], "%b %d %H:%M:%S"))
+
+# Test 201: TruncateTime to day
+set(attributes["date"], String(TruncateTime(Time(attributes["timestamp"], "%Y-%m-%dT%H:%M:%SZ"), Duration("24h"))))
+
+# Test 202: Create duration
+set(attributes["timeout"], Duration("5s"))
+
+# Test 203: Duration with minutes
+set(attributes["interval"], Duration("30m"))
+
+# Test 204: Duration with hours
+set(attributes["ttl"], Duration("24h"))
+
+# Test 205: Now function
+set(attributes["current_time"], Now())
+
+# ==============================================
+# Category 23: Hash and Encoding Functions
+# ==============================================
+
+# Test 206: SHA256 hash
+set(attributes["user_hash"], SHA256(attributes["user_id"]))
+
+# Test 207: MD5 hash
+set(attributes["request_hash"], MD5(attributes["request_id"]))
+
+# Test 208: SHA1 hash
+set(attributes["session_hash"], SHA1(attributes["session_id"]))
+
+# Test 209: Base64 decode
+set(attributes["decoded"], Decode(attributes["encoded_data"], "base64"))
+
+# Test 210: UTF-8 decode from body
+set(attributes["decoded_body"], Decode(body, "utf-8"))
+
+# ==============================================
+# Category 24: Edge Delta Extensions (Examples)
+# ==============================================
+
+# Test 211: EDXCoalesce for null handling (conceptual)
+set(attributes["effective_id"], Concat([attributes["user_id"], attributes["session_id"]], "|"))
+
+# Test 212: Conditional encoding simulation
+set(cache["encoded"], attributes["data"]) where IsString(attributes["data"])
+
+# Test 213: Type checking before conversion
+set(attributes["duration"], Duration(attributes["duration_str"])) where IsString(attributes["duration_str"])
+
+# ==============================================
+# Category 25: Replace Operations with Functions
+# ==============================================
+
+# Test 214: Replace match with glob pattern
+replace_match(resource.attributes["host.name"], "default-deployment-*", "anonymized-host")
+
+# Test 215: Replace all matches across map
+replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}")
+
+# Test 216: Replace pattern with regex in single field
+replace_pattern(attributes["decoded_body"], "192\\.168\\.1\\.\\d+", "192.168.1.xxx")
+
+# Test 217: Replace all patterns in all values
+replace_all_patterns(attributes, "value", "192\\.168\\.1\\.\\d+", "192.168.1.xxx")
+
+# Test 218: Replace with capture groups
+replace_pattern(attributes["path"], "^/api/v(\\d+)/(.+)$", "/api/version-$1/$2")
+
+# ==============================================
+# Category 26: Combined Real-World Scenarios
+# ==============================================
+
+# Test 219: Standard log enrichment pipeline - set original
+set(attributes["log.record.original"], body)
+
+# Test 220: Standard log enrichment pipeline - parse patterns
+merge_maps(attributes, ExtractPatterns(body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>\\S+) (?P<appname>\\S+)"), "upsert")
+
+# Test 221: Standard log enrichment pipeline - set severity
+set(severity_number, SEVERITY_NUMBER_INFO)
+
+# Test 222: Standard log enrichment pipeline - set severity text
+set(severity_text, "info")
+
+# Test 223: NGINX log transformation - decode body
+set(cache["body"], Decode(body, "utf-8"))
+
+# Test 224: NGINX log transformation - parse with regex
+replace_pattern(cache["body"], "^(\\S+) - (\\S+) \\[([^\\]]+)\\] \"([A-Z]+) (\\S+) ([^\"]+)\" (\\d{3}) (\\d+) \"([^\"]*)\" \"([^\"]*)\"$", "$1|$2|$3|$4|$5|$6|$7|$8|$9|$10")
+
+# Test 225: NGINX log transformation - extract client address
+set(attributes["client.address"], Split(cache["body"], "|")[0])
+
+# Test 226: NGINX log transformation - extract username
+set(attributes["username"], Split(cache["body"], "|")[1])
+
+# Test 227: NGINX log transformation - extract HTTP method
+set(attributes["http.request.method"], Split(cache["body"], "|")[3])
+
+# Test 228: Multi-condition environment classification
+set(attributes["env_tier"], "production-critical") where attributes["environment"] == "production" and attributes["tier"] == "critical"
+
+# Test 229: Multi-step attribute transformation
+set(attributes["service.version"], ConvertCase(Concat([attributes["service.name"], attributes["version"]], ".v"), "upper"))
+
+# Test 230: Conditional metric filtering
+set(attributes["include"], false) where name == "cpu.usage" and HasAttrOnDatapoint("region", "test")

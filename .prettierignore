@@ -1,0 +1,21 @@
+# Build / dependency output — do not reformat
+build/
+**/node_modules/
+**/out/
+
+# Generated / binary
+*.so
+*.class
+*.tokens
+*.interp
+
+# Tree-sitter generated sources
+tree-sitter-ottl/src/
+tree-sitter-ottl/bindings/
+
+# Test fixtures: one OTTL input per line, formatting would corrupt them
+tests/conformance/*.ottl
+examples/
+
+# Upstream LICENSE
+LICENSE

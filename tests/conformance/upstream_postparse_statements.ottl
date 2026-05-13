@@ -1,0 +1,17 @@
+# OTTL statements that fail post-parse semantic validation
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+set(1 * 1 + (2 * int()))
+set(1 * int())
+set(1 + int())
+set(foo.attributes["bar"].cat)["key"]
+set(int())
+set(int() + 1)
+set() where 1 == int()
+set() where false or 1 == int() 
+set() where int() == 1
+set() where test(foo)["key"] == "bar"
+set() where true and 1 == int() 
+test(fail())
+test() where one() == 1

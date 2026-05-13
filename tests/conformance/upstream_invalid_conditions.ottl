@@ -1,0 +1,28 @@
+# Invalid OTTL conditions (grammar errors)
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+(
+)
+==
+== animal
+animal
+animal ==
+animal <> "dog"
+animal = "dog"
+animal =< "dog"
+animal => "dog"
+("foo")
+name and
+name and "fido"
+((name == "fido")
+(name == "fido"))
+name = "fido"
+name =||= "fido"
+name or
+name or "fido"
+set(
+set()
+set("foo)
+set(name.)
+test(fail())

@@ -1,0 +1,50 @@
+# Valid OTTL statements
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+convert_gauge_to_sum("cumulative", false)
+convert_gauge_to_sum("cumulative", true)
+fff({})
+fff(12)
+fff(GetSomething({"foo":"bar"}))
+fff({"mapAttr": {"foo": "bar", "get": bear.honey, "arrayAttr":["foo", "bar"]}})
+fff({"stringAttr": "value", "intAttr": 3, "floatAttr": 2.5, "boolAttr": true})
+met(1.2)
+replace_pattern(attributes["message"], "device=*", attributes["device_name"], SHA256)
+replace_pattern(attributes["message"], S)
+replace_pattern(attributes["message"], Sha256)
+set(another.value, 1) where span.attributes["foo"] == "foo" and another.id == 1
+set(attributes["bar"], "dog")
+set(attributes["bytes"], 0x0102030405060708)
+set(attributes["test"], [])
+set(attributes["test"], 1000 - 600) where 1 + 1 * 2 == three / One()
+set(attributes["test"], [Concat(["a", "b"], "+"), ["1", 2, 3.0], nil, attributes["test"]])
+set(attributes["test"], "nil")
+set(attributes["test"], nil)
+set(attributes["test"], "pass") where IsMatch(name, "operation[AC]")
+set(attributes["test"], "pass") where IsMatch(resource.name, "operation[AC]")
+set(attributes["test"], TEST_ENUM)
+set(attributes["test"], ["value0"])
+set(attributes["test"], ["value1", "value2"])
+set("fo\"o")
+set("foo")
+set("foo", 1)
+set(foo.attributes["bar"].cat, "dog")
+set  ( foo.attributes[ "bar"].cat,   "dog")   where name=="fido"
+set(foo.attributes["bar"].cat, "dog") where name != "fido"
+set(foo.attributes["bar"].cat, "dog") where name == "fido"
+set(foo.bar["x"]["y"].z, Test()[0]["pass"])
+set("foo", GetSomething(bear.honey))
+set(name="foo")
+set(set = foo.attributes["animal"], val = "dog") where animal == "cat"
+set(span.value, 1)
+set(span.value, 1) where span.attributes["foo"] == "foo" and span.id == 1
+set(value, 1) where name == attributes["foo.name"]
+set(value, 1) where span.attributes["foo"] == "foo" and id == 1
+test() where animal < "cat"
+test() where animal <= "cat"
+test() where animal > "cat"
+test() where animal >= "cat"
+test() where attributes["path"] == "/healthcheck"
+test() where service == "pinger" or foo.attributes["endpoint"] == "/x/alive"
+test() where service == "pinger" or foo.attributes["verb"] == "GET" and foo.attributes["endpoint"] == "/x/alive"

@@ -1,0 +1,33 @@
+# Valid OTTL conditions
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+1 == Int()
+animal < "cat"
+animal <= "cat"
+animal > "cat"
+animal >= "cat"
+attributes["path"] == "/healthcheck"
+(false and true) or false
+false and (true or false)
+false and true or false
+false or 1 == Int() 
+Int() == 1
+name != "foo" and name != "bar"
+name == "foo" or name == "bar"
+nil == "nil"
+nil == nil
+not name == "bar"
+not (true or false)
+One() == 1
+service == "pinger" or foo.attributes["endpoint"] == "/x/alive"
+service == "pinger" or foo.attributes["verb"] == "GET" and foo.attributes["endpoint"] == "/x/alive"
+Test()
+true
+True()
+true and 1 == Int() 
+true and false
+True() and False()
+true and not false
+true and true and false
+true or false

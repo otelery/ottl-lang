@@ -1,0 +1,30 @@
+# Generated / build artefacts
+build/
+.antlr/
+*.class
+*.tokens
+*.interp
+
+# Tree-sitter generated
+tree-sitter-ottl/src/
+tree-sitter-ottl/bindings/
+tree-sitter-ottl/*.so
+
+# TypeScript build output
+lsp-ottl/out/
+
+# Node
+**/node_modules/
+
+# Local-only reference context (not part of this repo)
+opentelemetry-collector-contrib/
+spec/
+archive/
+NOTICE
+
+# Editor / OS / local env
+.DS_Store
+.idea/
+.vscode/
+.claude/
+.envrc

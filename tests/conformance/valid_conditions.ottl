@@ -1,0 +1,31 @@
+# OTTL Boolean Expressions from Filter Processor
+# These are standalone conditions used for filtering telemetry
+# Entry point: condition (not statement)
+
+# Simple attribute comparisons
+attributes["test"] == "pass"
+name == "pass"
+
+# Function calls
+Label("foo") == "bar"
+HasLabel("baz")
+
+# Complex comparisons
+resource.attributes["service.name"] == "myservice"
+attributes["http.method"] == "GET"
+attributes["http.status_code"] == 200
+
+# Logical operations
+attributes["test"] == "pass" and name == "mytest"
+HasLabel("production") or HasLabel("staging")
+not (attributes["error"] == true)
+
+# Pattern matching
+IsMatch(name, "http.*")
+IsMatch(resource.attributes["host.name"], "pod-*")
+
+# Nested conditions
+(attributes["env"] == "prod") and (attributes["tier"] == "frontend" or attributes["tier"] == "backend")
+
+# Null/nil checks
+attributes["optional"] != nil

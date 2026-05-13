@@ -1,0 +1,7 @@
+# OTTL conditions that fail post-parse semantic validation
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+test(animal) == "dog"
+test(animal)["kind"] == "birds"
+"test" == Foo

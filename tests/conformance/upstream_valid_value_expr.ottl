@@ -1,0 +1,8 @@
+# Valid OTTL value expressions (Test_parseValueExpression)
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+Test("foo")
+Test(Test("foo")) - attributes["bar"]
+time_end - time_end
+time_end - time_end - attributes["foo"]

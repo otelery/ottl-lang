@@ -1,0 +1,34 @@
+# Invalid OTTL statements (grammar errors)
+# Auto-extracted from opentelemetry-collector-contrib/pkg/ottl/{parser,expression}_test.go
+# by tests/extract_upstream_tests.sh — do not edit by hand.
+
+("foo")
+set(
+Set()
+set("foo)
+set("foo") where (
+set("foo") where )
+set("foo") where name and
+set("foo") where name and "fido"
+set("foo") where ((name == "fido")
+set("foo") where (name == "fido"))
+set("foo") where name = "fido"
+set("foo") where name =||= "fido"
+set("foo") where name or
+set("foo") where name or "fido"
+set(name.)
+set(span_id, SpanIDWrapper{01})
+set(span_id, SpanIDWrapper{010203040506070809})
+set(span_id, SpanIDWrapper{not a hex string})
+set(trace_id, TraceIDWrapper{0102030405060708090a0b0c0d0e0f})
+set(trace_id, TraceIDWrapper{0102030405060708090a0b0c0d0e0f1011})
+set(trace_id, TraceIDWrapper{not a hex string})
+Test()
+test() where ==
+test() where == animal
+test() where animal
+test() where animal ==
+test() where animal <> "dog"
+test() where animal = "dog"
+test() where animal =< "dog"
+test() where animal => "dog"
