@@ -1,0 +1,163 @@
+schemaVersion: "1"
+name: transformprocessor
+version: "0.0.0+unstable"
+ottlSpecVersion: "0.1"
+sourceRef:
+  repo: github.com/open-telemetry/opentelemetry-collector-contrib
+  path: processor/transformprocessor/internal
+extends:
+  - ottlfuncs
+functions:
+  # ---------------- metrics context ----------------
+  - name: convert_sum_to_gauge
+    kind: editor
+    returnType: Any
+    parameters: []
+    description: |
+      Transforms a Sum metric into a Gauge metric, preserving datapoints.
+    contexts: [metric]
+
+  - name: convert_gauge_to_sum
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: aggregation_temporality, type: String }
+      - { name: is_monotonic, type: Bool }
+    description: |
+      Transforms a Gauge into a Sum with the given temporality and monotonicity.
+    contexts: [metric]
+
+  - name: extract_count_metric
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: is_monotonic, type: Bool }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a new Sum metric from the count of a Histogram, ExponentialHistogram, or Summary.
+    contexts: [metric]
+
+  - name: extract_percentile_metric
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: percentile, type: Float }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a new Gauge metric for a percentile from a Histogram or ExponentialHistogram.
+    contexts: [metric]
+
+  - name: extract_sum_metric
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: is_monotonic, type: Bool }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a new Sum metric from the sum of a Histogram, ExponentialHistogram, or Summary.
+    contexts: [metric]
+
+  - name: convert_summary_count_val_to_sum
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: aggregation_temporality, type: String }
+      - { name: is_monotonic, type: Bool }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a Sum metric from a Summary count value.
+    contexts: [metric]
+
+  - name: convert_summary_quantile_val_to_gauge
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: attribute_key, type: Optional<String> }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a Gauge metric exposing Summary quantiles as datapoint attributes.
+    contexts: [metric]
+
+  - name: convert_summary_sum_val_to_sum
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: aggregation_temporality, type: String }
+      - { name: is_monotonic, type: Bool }
+      - { name: suffix, type: Optional<String> }
+    description: |
+      Creates a Sum metric from a Summary sum value.
+    contexts: [metric]
+
+  - name: copy_metric
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: name, type: Optional<Getter<String>> }
+      - { name: description, type: Optional<Getter<String>> }
+      - { name: unit, type: Optional<Getter<String>> }
+    description: |
+      Duplicates the current metric, optionally overriding name/description/unit.
+    contexts: [metric]
+
+  - name: scale_metric
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: multiplier, type: Float }
+      - { name: unit, type: Optional<Getter<String>> }
+    description: |
+      Multiplies every datapoint value of the current metric by `multiplier`.
+    contexts: [metric]
+
+  - name: aggregate_on_attributes
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: function, type: String }
+      - { name: attributes, type: Optional<List<String>> }
+    description: |
+      Aggregates datapoints across the given attributes using the named aggregation.
+    contexts: [metric]
+
+  - name: convert_exponential_histogram_to_histogram
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: distribution, type: String }
+      - { name: explicit_bounds, type: List<Float> }
+    description: |
+      Converts an ExponentialHistogram into an explicit Histogram using the named distribution algorithm.
+    contexts: [metric]
+
+  - name: aggregate_on_attribute_value
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: function, type: String }
+      - { name: attribute, type: String }
+      - { name: values, type: List<String> }
+      - { name: new_value, type: String }
+    description: |
+      Aggregates datapoints whose `attribute` matches one of `values`, replacing them with `new_value`.
+    contexts: [metric]
+
+  - name: merge_histogram_buckets
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: bound, type: Float }
+    description: |
+      Merges the histogram bucket at `bound` with the following bucket.
+    contexts: [metric]
+
+  # ---------------- trace context ----------------
+  - name: set_semconv_span_name
+    kind: editor
+    returnType: Any
+    parameters:
+      - { name: semconv_version, type: String }
+      - { name: original_span_name_attribute, type: Optional<String> }
+    description: |
+      Rewrites the span name using OpenTelemetry semantic conventions for the given version.
+    contexts: [span]

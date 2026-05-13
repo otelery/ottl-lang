@@ -8,7 +8,45 @@ The version policy for `SPEC.md` is documented in §8 of that document.
 
 ## [Unreleased]
 
+### Added
+
+- **`SPEC.md` §10 — function signature schema.** Normative description
+  of the _shape_ of a function-registry document (type lattice,
+  parameter descriptors, validation rules, Go→type mapping). The
+  membership of any registry stays out of scope, matching the
+  rewritten §9 non-goal.
+- **`functions/` directory** — companion registry data, separate from
+  the spec:
+  - `SCHEMA.md` — on-disk format, worked examples (`append`, `Concat`),
+    Go-type cheatsheet.
+  - `transformprocessor.yaml` — 14 metric functions + 1 trace function
+    (`set_semconv_span_name`), extracted from upstream `Arguments`
+    structs.
+  - `filterprocessor.yaml` — `HasAttrOnDatapoint`,
+    `HasAttrKeyOnDatapoint` (converters only; filter never registers
+    editors).
+  - `routingconnector.yaml` — adds `route`, and documents the
+    connector's restriction of the base to standard converters plus
+    `delete_key`/`delete_matching_keys` (and `IsRootSpan` for spans).
+- **`Makefile`** with `build`, `conformance`/`test`, `clean` targets.
+  Autodetects `ANTLR_JAR` from the `antlr` wrapper in `PATH` and
+  common install locations.
+
 ### Changed
+
+- **`tests/run_conformance.sh`** no longer hardcodes the Homebrew ANTLR
+  jar path. It now reuses the same autodetection as the Makefile and
+  honours `$ANTLR_JAR` when set. The "parser missing" error message
+  references `make build` (which now exists) and includes the raw
+  fallback command.
+- **`SPEC.md` §9** — the "Function signatures" non-goal is rewritten to
+  clarify that the schema for describing a registry _is_ normative
+  (§10), even though no canonical function library is defined here.
+- Planning notes for the sibling `otelcol-lang` project moved to a
+  separate repository (`otelery/otelcol-lang`); removed from this
+  repo's `docs/`.
+
+### Project meta
 
 - Project name is now `ottl-lang`, hosted under the
   [`otelery`](https://github.com/otelery) GitHub organisation as
@@ -16,14 +54,6 @@ The version policy for `SPEC.md` is documented in §8 of that document.
   "opentelemetry-transformation-language"). Sub-package names
   (`ottl-lsp`, `tree-sitter-ottl`) are unchanged and remain the
   intended publish names.
-
-### Added
-
-- [`docs/otelcol-lang.md`](./docs/otelcol-lang.md) — planning notes
-  for a separate `otelcol-lang` project (YAML LSP for the
-  OpenTelemetry Collector config with embedded OTTL). Captures the
-  architecture, the obligations on this repo, and the bootstrapping
-  order so the work can start without retrofits.
 
 ## [0.1.0] — 2026-05-10
 
