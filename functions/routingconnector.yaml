@@ -1,0 +1,32 @@
+schemaVersion: "1"
+name: routingconnector
+version: "0.0.0+unstable"
+ottlSpecVersion: "0.1"
+sourceRef:
+  repo: github.com/open-telemetry/opentelemetry-collector-contrib
+  path: connector/routingconnector
+extends:
+  - ottlfuncs
+notes: |
+  The routing connector restricts the registry to a safe subset of
+  ottlfuncs (standard converters that do not mutate data) plus the
+  custom `route` function. Editors are limited to `delete_key` and
+  `delete_matching_keys` from ottlfuncs. For span routing, `IsRootSpan`
+  from ottlfuncs is additionally exposed.
+restrictsBase: true
+exposedFromBase:
+  converters: ottlfuncs.StandardConverters # all standard converters
+  editors:
+    - delete_key
+    - delete_matching_keys
+  spanContextExtras:
+    - IsRootSpan
+functions:
+  - name: route
+    kind: converter
+    returnType: Bool
+    parameters: []
+    description: |
+      Marker converter that always returns true. Used in routing
+      `condition`/`statement` expressions where the connector treats a
+      true result as a match for the route's pipeline set.

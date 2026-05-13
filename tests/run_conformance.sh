@@ -16,14 +16,48 @@ set -uo pipefail
 
 INVOKED_FROM="$PWD"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ANTLR_JAR="${ANTLR_JAR:-/home/linuxbrew/.linuxbrew/Cellar/antlr/4.13.2/antlr-4.13.2-complete.jar}"
 BUILD_DIR="$ROOT/build/java"
+
+# Locate the ANTLR complete jar. Honours $ANTLR_JAR, then tries to read the
+# path out of the `antlr` wrapper script in PATH, then a few common install
+# locations. Override by exporting ANTLR_JAR=/path/to/antlr-*-complete.jar.
+find_antlr_jar() {
+    if [[ -n "${ANTLR_JAR:-}" && -f "$ANTLR_JAR" ]]; then
+        printf '%s\n' "$ANTLR_JAR"; return 0
+    fi
+    if command -v antlr >/dev/null 2>&1; then
+        local wrapper jar
+        wrapper="$(command -v antlr)"
+        jar="$(grep -oE '/[^ "'\'']*antlr-[0-9.]+-complete\.jar' "$wrapper" 2>/dev/null | head -1)"
+        if [[ -n "$jar" && -f "$jar" ]]; then printf '%s\n' "$jar"; return 0; fi
+    fi
+    local patterns=(
+        /usr/local/lib/antlr-*-complete.jar
+        /usr/share/java/antlr-*-complete.jar
+        /opt/homebrew/Cellar/antlr/*/libexec/antlr-*-complete.jar
+        /home/linuxbrew/.linuxbrew/Cellar/antlr/*/antlr-*-complete.jar
+        "$HOME/.local/share/antlr/antlr-*-complete.jar"
+    )
+    local f
+    for f in "${patterns[@]}"; do
+        [[ -f $f ]] && { printf '%s\n' "$f"; return 0; }
+    done
+    return 1
+}
+
+if ! ANTLR_JAR="$(find_antlr_jar)"; then
+    echo "error: ANTLR jar not found." >&2
+    echo "  Install antlr 4.13+ or set ANTLR_JAR=/path/to/antlr-*-complete.jar" >&2
+    exit 2
+fi
+
 # grun's TestRig only resolves grammar classes from `.` in CLASSPATH —
 # absolute entries are ignored. Run from BUILD_DIR.
 export CLASSPATH=".:$ANTLR_JAR"
 
 if [[ ! -d "$BUILD_DIR" ]]; then
-    echo "Generated parser missing. Run: make build" >&2
+    echo "error: generated parser missing at $BUILD_DIR" >&2
+    echo "  Run: make build  (or: antlr -Dlanguage=Java OTTL.g4 -o build/java && javac -cp \"\$ANTLR_JAR\" build/java/*.java)" >&2
     exit 2
 fi
 cd "$BUILD_DIR"

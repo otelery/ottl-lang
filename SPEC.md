@@ -358,9 +358,107 @@ This document is versioned independently of the upstream collector. Version incr
 ## 9. Non-goals
 
 - **Static type checking.** OTTL is dynamically typed at the value level; type errors surface at runtime.
-- **Function signatures.** The set of editors and converters is supplied by the host. The spec defines only the _call syntax_.
+- **A canonical function library.** The set of editors and converters is host-supplied and varies across processors. The spec defines call syntax (§3) and the **schema** for describing a registry (§10); it does not enumerate functions. A reference catalog derived from upstream `ottlfuncs` ships separately under `functions/`.
 - **Path semantics.** The interpretation of `resource.attributes["x"]` is the host's responsibility.
 - **Evaluation semantics.** This spec defines syntax and the diagnostics tied to it. Evaluation is normative in [`LANGUAGE.md`][upstream-langmd] and the [reference implementation][upstream-pkg].
+
+---
+
+## 10. Function signature schema
+
+This section is **normative** for the _shape_ of function-registry data, not for the membership of any registry. A host advertises its registry as a document conforming to §10; tooling (LSP completion, hover, signature help, diagnostics) consumes it. See [`functions/SCHEMA.md`](./functions/SCHEMA.md) for the JSON Schema and a worked example.
+
+### 10.1 Registry document
+
+A registry is a flat list of function entries plus a small header:
+
+```
+registry        ::= header functionEntry+
+header          ::= name version ottlSpecVersion sourceRef?
+functionEntry   ::= name kind parameters returnType description? examples? since?
+```
+
+- `kind ∈ { "editor", "converter" }`. MUST agree with the casing of `name` per §4.1 (`editor` → `LOWER_ID`, `converter` → `UPPER_ID`).
+- `name` MUST be a valid `LOWER_ID` or `UPPER_ID` per §2.5.
+- `sourceRef` is a commit hash / tag of the upstream this registry was generated from, when applicable.
+
+### 10.2 Parameter descriptors
+
+Each parameter has a `name` (valid `LOWER_ID`, §2.5), a `type` (§10.3), and flags:
+
+| Flag       | Meaning                                                                |
+| ---------- | ---------------------------------------------------------------------- |
+| `optional` | May be omitted; when omitted by position, all later args MUST be named |
+| `variadic` | Repeats; MUST be the last positional parameter; type is element type   |
+| `target`   | `true` for the lvalue of an editor (the `GetSetter` slot)              |
+
+Argument-ordering rules from §4.6 are normative; §10 does not relax them.
+
+### 10.3 Type language
+
+The type expression grammar is closed. Tooling MUST reject unknown atoms.
+
+```
+type        ::= atom
+              | 'Optional<' type '>'
+              | 'List<' type '>'
+              | 'Getter<' valueAtom '>'           /* coercing reader */
+              | 'Setter<' valueAtom '>'           /* editor target (lvalue) */
+              | 'Enum<' enumName '>'              /* host-defined symbol set */
+              | 'FunctionRef'                     /* bare UPPER_ID argument, §3.2 */
+
+atom        ::= valueAtom | pdataAtom
+valueAtom   ::= 'String' | 'Int' | 'Float' | 'Bool' | 'Bytes'
+              | 'Time' | 'Duration' | 'Any'
+pdataAtom   ::= 'PMap' | 'PSlice' | 'PValue'
+```
+
+Mapping from the reference implementation's Go types is normative:
+
+| Go type                                        | §10.3 type                                    |
+| ---------------------------------------------- | --------------------------------------------- |
+| `string`, `int64`, `float64`, `bool`, `[]byte` | `String` / `Int` / `Float` / `Bool` / `Bytes` |
+| `ottl.Getter[K]`                               | `Getter<Any>`                                 |
+| `ottl.StringGetter[K]`                         | `Getter<String>`                              |
+| `ottl.IntGetter[K]`                            | `Getter<Int>`                                 |
+| `ottl.FloatGetter[K]`                          | `Getter<Float>`                               |
+| `ottl.BoolGetter[K]`                           | `Getter<Bool>`                                |
+| `ottl.StringLikeGetter[K]`                     | `Getter<String>` _(coerces — see §10.4)_      |
+| `ottl.FloatLikeGetter[K]`                      | `Getter<Float>` _(coerces)_                   |
+| `ottl.IntLikeGetter[K]`                        | `Getter<Int>` _(coerces)_                     |
+| `ottl.ByteSliceLikeGetter[K]`                  | `Getter<Bytes>` _(coerces)_                   |
+| `ottl.PMapGetter[K]`                           | `Getter<PMap>`                                |
+| `ottl.PSliceGetter[K]`                         | `Getter<PSlice>`                              |
+| `ottl.TimeGetter[K]`                           | `Getter<Time>`                                |
+| `ottl.DurationGetter[K]`                       | `Getter<Duration>`                            |
+| `ottl.FunctionGetter[K]`                       | `FunctionRef`                                 |
+| `ottl.GetSetter[K]` (target field)             | `Setter<Any>`                                 |
+| `ottl.Optional[T]`                             | `Optional<T'>`                                |
+| `[]T`                                          | `List<T'>` (variadic when in tail position)   |
+
+`Like` variants are not a separate type; they are a runtime coercion flag (§10.4) on a `Getter<...>`.
+
+### 10.4 Coercion flag
+
+Parameter descriptors MAY carry `coerce: true` to indicate the host accepts cross-type inputs and converts them (the upstream `*LikeGetter` interfaces). Tooling SHOULD suppress type-mismatch diagnostics on such parameters and instead surface them as info-level notes.
+
+### 10.5 Return type
+
+`returnType` is a §10.3 `type`. For editors, `returnType` MUST be `Any` (editors are statements, not expressions) and tooling MUST reject any expression-position use per §4.4.
+
+### 10.6 Validation
+
+A conformant registry document MUST satisfy:
+
+1. Every `name` unique within the registry.
+2. `kind` matches `name` casing (§4.1).
+3. `target: true` appears on at most one parameter, only when `kind = "editor"`, and that parameter's type is `Setter<...>`.
+4. Variadic parameter, if present, is last and positional.
+5. All types parse under §10.3.
+
+### 10.7 Versioning
+
+The schema (§10) versions independently of any registry document. A registry document declares the schema version it conforms to and the `ottlSpecVersion` (§8) it targets. Upstream `ottlfuncs` is one such registry; processor-specific registries (transform, filter, routing) MAY extend it.
 
 ---
 

@@ -1,0 +1,35 @@
+schemaVersion: "1"
+name: filterprocessor
+version: "0.0.0+unstable"
+ottlSpecVersion: "0.1"
+sourceRef:
+  repo: github.com/open-telemetry/opentelemetry-collector-contrib
+  path: internal/filter/filterottl
+extends:
+  - ottlfuncs
+notes: |
+  The filter processor only registers OTTL **converters** (no editors —
+  filter rules are boolean conditions, not statements). Beyond the
+  standard ottlfuncs converters it adds the two metrics-only converters
+  below.
+functions:
+  - name: HasAttrOnDatapoint
+    kind: converter
+    returnType: Bool
+    parameters:
+      - { name: key, type: String }
+      - { name: expected_val, type: String }
+    description: |
+      Returns true if any datapoint of the current metric has an attribute
+      `key` whose value equals `expected_val`.
+    contexts: [metric]
+
+  - name: HasAttrKeyOnDatapoint
+    kind: converter
+    returnType: Bool
+    parameters:
+      - { name: key, type: String }
+    description: |
+      Returns true if any datapoint of the current metric carries an
+      attribute with the given `key`.
+    contexts: [metric]
