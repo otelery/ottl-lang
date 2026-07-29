@@ -84,6 +84,10 @@
           "match": "==|!=|<=|>=|<|>"
         },
         {
+          "name": "keyword.operator.arrow.lambda.ottl",
+          "match": "=>"
+        },
+        {
           "name": "keyword.operator.arithmetic.ottl",
           "match": "[+\\-*/]"
         },
@@ -123,6 +127,11 @@
           "comment": "Enum: uppercase identifier NOT followed by '('",
           "name": "constant.other.enum.ottl",
           "match": "\\b([A-Z][a-zA-Z0-9_]*)\\b(?!\\s*\\()"
+        },
+        {
+          "comment": "Blank lambda parameter",
+          "name": "variable.language.blank.ottl",
+          "match": "(?<![a-zA-Z0-9_])_(?![a-zA-Z0-9_])"
         },
         {
           "comment": "Path/field: lowercase identifier",

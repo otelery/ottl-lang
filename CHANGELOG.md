@@ -10,6 +10,24 @@ The version policy for `SPEC.md` is documented in §8 of that document.
 
 ### Added
 
+- **Lambda expressions** (`(params) => body`, SPEC §3.7), matching upstream
+  Collector Contrib v0.157.0 (`ottl.functions.enableLambda` feature gate).
+  - `OTTL.g4` — new `ARROW` (`=>`) and `UNDERSCORE` (`_`) lexer tokens, new
+    `lambda`/`lambdaParam`/`lambdaBody` parser rules, wired into `value`.
+  - `SPEC.md` — new §3.7, §4.9 (nesting + feature-gate constraints), a
+    `Lambda` atom in the §10.3 type language, and updates to §2.4/§5.
+  - `tree-sitter-ottl/grammar.js` — mirrors the ANTLR grammar; adds `lambda`
+    rule and the GLR conflicts it introduces.
+  - `textmate-ottl/ottl.tmLanguage.json` — restored (was deleted) and
+    updated with an `=>` operator pattern and blank-parameter highlighting.
+  - `functions/ottlfuncs-lambda.yaml` (new overlay) — registers the 8
+    higher-order converters: `Filter`, `MapEach`, `MapKeys`, `Any`, `All`,
+    `Find`, `Reduce`, `When`.
+  - `functions/SCHEMA.md` — documents the `Lambda` type atom and a worked
+    `Filter` example.
+  - `tests/conformance/valid_statements.ottl` and `valid_conditions.ottl` —
+    new lambda test cases for both the ANTLR and tree-sitter conformance
+    runners.
 - **`SPEC.md` §10 — function signature schema.** Normative description
   of the _shape_ of a function-registry document (type lattice,
   parameter descriptors, validation rules, Go→type mapping). The
