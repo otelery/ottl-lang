@@ -22,12 +22,17 @@ module.exports = grammar({
 
   // GLR conflicts: a converter can appear both as a boolean atom (returning
   // bool) and as a math atom (returning numeric). The host's function
-  // registry resolves which.
+  // registry resolves which. `lambda_body` (SPEC §3.7) is likewise ambiguous
+  // between `_value` and `boolean_expr` until enough of the body is seen.
   conflicts: ($) => [
     [$._boolean_atom, $._math_atom],
-    [$.boolean_expr, $.math_expression],
     [$._key_value, $._math_atom],
-    [$._key_value, $.math_expression],
+    [$._value, $._boolean_atom],
+    [$.lambda_body, $.comparison],
+    [$.lambda_body, $.boolean_expr],
+    // `(v)` is ambiguous between a lambda's single-parameter list and a
+    // parenthesized math expression until `=>` (or its absence) is seen.
+    [$.lambda_param, $.field],
   ],
 
   rules: {
@@ -53,6 +58,7 @@ module.exports = grammar({
     _value: ($) =>
       choice(
         $.nil,
+        $.lambda,
         $.math_expression,
         $.bytes,
         $.string,
@@ -65,6 +71,21 @@ module.exports = grammar({
     nil: () => "nil",
     boolean: () => choice("true", "false"),
     enum_value: ($) => $.upper_id,
+
+    // SPEC §3.7 — lambdas only occur in value position (function arguments).
+    lambda: ($) =>
+      seq(
+        "(",
+        optional(seq($.lambda_param, repeat(seq(",", $.lambda_param)))),
+        ")",
+        "=>",
+        $.lambda_body,
+      ),
+    lambda_param: ($) => choice($.lower_id, $.underscore),
+    // `_value` is tried before `boolean_expr` (SPEC §3.7): a body like `v * 2`
+    // parses as a value while `v == "prod"` falls back to a boolean expr.
+    lambda_body: ($) => choice($._value, $.boolean_expr),
+    underscore: () => "_",
 
     list_value: ($) => seq("[", optional(seq($._value, repeat(seq(",", $._value)))), "]"),
     map_value: ($) =>

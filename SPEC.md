@@ -1,6 +1,6 @@
 # OpenTelemetry Transformation Language — Specification
 
-**Status:** Draft 0.1
+**Status:** Draft 0.2
 **Source of truth:** This document. All parser implementations (ANTLR `.g4`, Tree-sitter `grammar.js`, TextMate `.tmLanguage.json`, LSP) MUST conform to it.
 **Reference implementation:** [`pkg/ottl`][upstream-pkg] in [`open-telemetry/opentelemetry-collector-contrib`][upstream-repo] ([`spec/grammar.go`][upstream-grammar], Participle).
 
@@ -80,6 +80,7 @@ PLUS       ::= '+'
 MINUS      ::= '-'
 MULT       ::= '*'
 DIV        ::= '/'
+ARROW      ::= '=>'                   /* lambda expressions, §3.7 */
 EQUAL      ::= '='
 LPAREN     ::= '('
 RPAREN     ::= ')'
@@ -92,7 +93,7 @@ COMMA      ::= ','
 COLON      ::= ':'
 ```
 
-Multi-character operators MUST be matched before their single-character prefixes (e.g. `==` before `=`, `<=` before `<`).
+Multi-character operators MUST be matched before their single-character prefixes (e.g. `==` before `=`, `<=` before `<`, `=>` before `=`).
 
 ### 2.5 Identifiers
 
@@ -114,6 +115,15 @@ Examples:
 | `SPAN_KIND_SERVER` | `UPPER_ID` | enum symbol    |
 
 > **Note (semantic, not lexical):** the _casing convention_ is enforced after parsing — see §4.1.
+
+A standalone underscore is tokenized separately from `LOWER_ID`:
+
+```
+UNDERSCORE ::= '_'                    /* blank lambda parameter, §3.7 */
+```
+
+`_` as an interior or leading character of a longer run (e.g. `my_field`) is still absorbed
+into `LOWER_ID`/`UPPER_ID`; `UNDERSCORE` only matches the single bare character.
 
 ---
 
@@ -149,6 +159,7 @@ The bare-`UPPER_ID` alternative in `argument` allows passing a function referenc
 
 ```
 value      ::= NIL
+             | lambda                         /* function-argument position only, §3.7 */
              | mathExprLiteral                /* literal not followed by + - * / */
              | mathExpression
              | BYTES
@@ -210,6 +221,43 @@ booleanValue ::= comparison
 comparison   ::= value comparisonOp value
 comparisonOp ::= EQ | NEQ | LTE | GTE | LT | GT
 ```
+
+### 3.7 Lambda expressions (experimental)
+
+> **Status: experimental.** Upstream ships lambdas as `alpha`, behind the `ottl.functions.enableLambda` feature gate (disabled by default), and the lambda API and all functions that accept lambdas live in the experimental `xottl` module. They are **not** covered by OTTL's stability guarantee (traces, metrics and logs signals promoted to stable in [#51236](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/51236)). The syntax below may change or be removed without a major spec version. A conformant parser SHOULD accept it; a host that does not enable lambdas MUST reject it (§4.9).
+
+```
+lambda      ::= LPAREN (lambdaParam (COMMA lambdaParam)*)? RPAREN ARROW lambdaBody
+lambdaParam ::= LOWER_ID | UNDERSCORE
+lambdaBody  ::= value
+              | booleanExpr
+```
+
+A lambda expression is inline logic passed to a higher-order function (e.g. `Filter`,
+`MapEach`, `When` — see [`functions/ottlfuncs-lambda.yaml`](./functions/ottlfuncs-lambda.yaml)
+for the catalog). Syntactically a lambda is a `value`, so the grammar admits it wherever a
+value is allowed. It is only meaningful as an argument of a function whose parameter has
+type `Lambda` (§10.3); the host rejects it anywhere else. It is never a statement or a
+bare top-level expression.
+
+`lambdaParam` names introduce local identifiers scoped to `lambdaBody`; `_` marks a
+parameter whose value is unused. The number and role of parameters (e.g. "index-or-key,
+then value") is defined per function by the host's function registry (§10), not by the
+grammar — the grammar only constrains parameters to a comma-separated list of `LOWER_ID`
+or `_`.
+
+`lambdaBody` tries `value` before `booleanExpr`, so a body like `v * 2` parses as a math
+value while a body like `v == "prod"` or `a and b` falls back to a boolean expression.
+
+Examples:
+
+```
+(key, value) => HasPrefix(key, "http.")
+(_, v) => v * 2
+() => IsMap(log.attributes)
+```
+
+See §4 for semantic constraints (nested lambdas, the feature-gate requirement).
 
 ---
 
@@ -281,6 +329,26 @@ Math operations are evaluated at runtime. The grammar does not type-check.
 
 See `LANGUAGE.md` §Comparison Rules. Numeric comparisons widen to `float64` when types differ; non-primitive types support only `==` and `!=`. Implementations MUST NOT attempt static type-checking of comparisons.
 
+### 4.9 Lambda constraints
+
+- A lambda `lambdaBody` MUST NOT itself be a `lambda` (e.g. `(x) => (y) => x + y` is
+  grammatically accepted but MUST be rejected post-parse with
+  `lambda body cannot result into another lambda expression`). A body that evaluates to a
+  lambda does not retain the outer lambda's parameter bindings. A lambda nested _inside_ a
+  body, for example as an argument of a function call, is allowed and may read the outer
+  parameters: `(_, a) => Any(xs, (_, b) => a == b)`.
+- Parameter names other than `_` MUST be unique within one lambda; `_` may repeat.
+- A conformant host MUST reject any statement or condition containing a `lambda` value
+  unless the host's lambda-functions feature is enabled (upstream: the
+  `ottl.functions.enableLambda` feature gate). The grammar always accepts the syntax;
+  gating is enforced by the host, not the parser.
+- Parameter arity and role (e.g. "index-or-key, then value" for `Filter`) are validated
+  per function by the host against its function registry (§10); the grammar only
+  constrains the parameter list shape (§3.7).
+- `lambdaParam` names are scoped to `lambdaBody`. An inner parameter shadows an outer lambda
+  parameter, and a parameter shadows a path context or field of the same name, for the
+  duration of the lambda.
+
 ---
 
 ## 5. Operator precedence (summary)
@@ -298,6 +366,10 @@ From lowest to highest binding:
 | 7     | `( ... )` `[ ... ]` `f(...)` | —             | primary    |
 
 Comparisons are non-associative: `a == b == c` is a syntax error.
+
+A `lambda` (`(params) => body`) is not itself an operator in this table — it is a value
+production (§3.7) delimited by its own parentheses and `=>`. Its `lambdaBody` is a full
+`value`/`booleanExpr`, so operator precedence inside the body follows this same table.
 
 ---
 
@@ -352,6 +424,7 @@ This document is versioned independently of the upstream collector. Version incr
 | Version | Date       | Notes                                                                   |
 | ------- | ---------- | ----------------------------------------------------------------------- |
 | 0.1     | 2026-05-10 | Initial draft from `OTTL.g4` and [`spec/grammar.go`][upstream-grammar]. |
+| 0.2     | 2026-10-25 | Add experimental lambda expressions (§2.5, §3.7, §4.9, `Lambda` type).  |
 
 ---
 
@@ -406,6 +479,7 @@ type        ::= atom
               | 'Setter<' valueAtom '>'           /* editor target (lvalue) */
               | 'Enum<' enumName '>'              /* host-defined symbol set */
               | 'FunctionRef'                     /* bare UPPER_ID argument, §3.2 */
+              | 'Lambda'                           /* lambda expression argument, §3.7 */
 
 atom        ::= valueAtom | pdataAtom
 valueAtom   ::= 'String' | 'Int' | 'Float' | 'Bool' | 'Bytes'
@@ -435,8 +509,15 @@ Mapping from the reference implementation's Go types is normative:
 | `ottl.GetSetter[K]` (target field)             | `Setter<Any>`                                 |
 | `ottl.Optional[T]`                             | `Optional<T'>`                                |
 | `[]T`                                          | `List<T'>` (variadic when in tail position)   |
+| `*ottl.LambdaExpression[K]`                    | `Lambda`                                      |
 
 `Like` variants are not a separate type; they are a runtime coercion flag (§10.4) on a `Getter<...>`.
+
+`Lambda` is opaque at the type-language level — it does not encode parameter arity, parameter
+roles, or the lambda's return type. Those are function-specific constraints documented in the
+registry entry's `description` (see `functions/SCHEMA.md`), mirroring how the reference
+implementation's `*ottl.LambdaExpression[K]` carries no static arity either. An optional lambda
+parameter (e.g. `Find`'s `mapper`) is `Optional<Lambda>`.
 
 ### 10.4 Coercion flag
 

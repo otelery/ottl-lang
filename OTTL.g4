@@ -89,6 +89,7 @@ argument
 
 value
     : NIL
+    | lambda
     | mathExprLiteral
     | mathExpression
     | BYTES
@@ -97,6 +98,32 @@ value
     | enumValue
     | mapValue
     | listValue
+    ;
+
+// -----------------------------------------------
+// Lambda expressions (SPEC §3.7)
+// -----------------------------------------------
+
+// Experimental (alpha upstream). Syntactically a lambda is a `value`; hosts
+// accept it only as an argument of a Lambda-typed parameter. A lambda body
+// that is itself another lambda is rejected post-parse (SPEC §4.9).
+// Whether lambda arguments are accepted at all is gated by the host feature
+// flag `ottl.functions.enableLambda` (SPEC §4) — the grammar always accepts
+// the syntax.
+lambda
+    : LPAREN (lambdaParam (COMMA lambdaParam)*)? RPAREN ARROW lambdaBody
+    ;
+
+lambdaParam
+    : LOWER_ID
+    | UNDERSCORE
+    ;
+
+// `value` is tried before `booleanExpr` so that e.g. `v * 2` parses as a
+// math value while `v == "prod"` falls back to a boolean expression.
+lambdaBody
+    : value
+    | booleanExpr
     ;
 
 // SPEC §4.2: UPPER_ID without `(` is an enum. Disambiguation is left to
@@ -243,6 +270,7 @@ PLUS    : '+' ;
 MINUS   : '-' ;
 MULT    : '*' ;
 DIV     : '/' ;
+ARROW   : '=>' ;
 EQUAL   : '=' ;
 
 LPAREN   : '(' ;
@@ -259,6 +287,10 @@ SEMI     : ';' ;
 // Identifiers (SPEC §2.5) — single-token mixed-case strategy.
 UPPER_ID : [A-Z] [a-zA-Z0-9_]* ;
 LOWER_ID : [a-z] [a-zA-Z0-9_]* ;
+
+// Blank lambda parameter (SPEC §3.7) — standalone underscore only; `_` as
+// part of an identifier is absorbed by UPPER_ID/LOWER_ID above.
+UNDERSCORE : '_' ;
 
 // Whitespace and comments (SPEC §6.2 extension) — skipped.
 WS            : [ \t\r\n]+ -> skip ;

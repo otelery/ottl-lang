@@ -800,3 +800,52 @@ set(attributes["service.version"], ConvertCase(Concat([attributes["service.name"
 
 # Test 230: Conditional metric filtering
 set(attributes["include"], false) where name == "cpu.usage" and HasAttrOnDatapoint("region", "test")
+
+# ==============================================
+# Category N: Lambda expressions (SPEC §3.7)
+# ==============================================
+
+# Test 231: Filter a slice by value, blank index parameter
+set(attributes["x"], Filter(log.attributes["tags"], (_, v) => v == "prod"))
+
+# Test 232: Filter a map by key
+set(attributes["x"], Filter(log.attributes, (k, _) => HasPrefix(k, "http.")))
+
+# Test 233: MapEach with a math expression body
+set(attributes["x"], MapEach(log.attributes["counts"], (_, v) => Int(v) * 2))
+
+# Test 234: MapKeys transforming keys via a converter body
+set(attributes["x"], MapKeys(log.attributes, (k, _) => Concat(["http.", k], "")))
+
+# Test 235: Any with a comparison body
+set(attributes["x"], Any(log.attributes["tags"], (_, v) => v == "prod"))
+
+# Test 236: All with a comparison body
+set(attributes["x"], All(log.attributes["tags"], (_, v) => v == "prod"))
+
+# Test 237: Find with a predicate lambda
+set(attributes["x"], Find(log.attributes["tags"], (_, v) => v == "prod"))
+
+# Test 238: Find with predicate and optional mapper lambda
+set(attributes["x"], Find(log.attributes["tags"], (_, v) => v == "prod", mapper=(_, v) => String(v)))
+
+# Test 239: Reduce with a three-parameter accumulator lambda
+set(attributes["x"], Reduce(log.attributes["nums"], 0, (acc, _, v) => acc + Int(v)))
+
+# Test 240: When with a zero-parameter lambda condition
+set(attributes["x"], When(() => IsMap(log.attributes), "map", "not map"))
+
+# Test 241: When with a comparison-body lambda condition
+set(attributes["x"], When(() => attributes["int_value"] > 0, "positive", "negative"))
+
+# Test 242: Lambda body that is itself a boolean expression with and/or
+set(attributes["x"], Any(log.attributes["tags"], (_, v) => v == "prod" or v == "staging"))
+
+# Test 243: Zero-parameter lambda, parenthesized math body
+set(attributes["x"], When(() => (attributes["a"] + 1) * 2 > 0, "pos", "neg"))
+
+# Test 244: Nested lambda inside a body, reading the outer parameter
+set(attributes["x"], Filter(log.attributes["xs"], (_, a) => Any(log.attributes["ys"], (_, b) => a == b)))
+
+# Test 245: Lambda statement with where clause
+set(attributes["x"], MapEach(log.attributes["counts"], (_, v) => v + 1)) where log.body != nil

@@ -1,0 +1,237 @@
+schemaVersion: "1"
+name: ottlfuncs-lambda
+version: "0.0.0+unstable"
+ottlSpecVersion: "0.2"
+sourceRef:
+  repo: github.com/open-telemetry/opentelemetry-collector-contrib
+  path: pkg/ottl/xottl/ottlfuncs
+extends:
+  - ottlfuncs
+notes: |
+  Higher-order converters that accept lambda expressions (SPEC §3.7) as
+  arguments. All eight remain **experimental** upstream and require the
+  `ottl.functions.enableLambda` feature gate to be enabled; a conformant
+  host MUST reject lambda arguments when the gate is off (SPEC §4.9).
+
+  Lambda parameter arity and role are function-specific and are not
+  representable in the §10.3 `Lambda` type atom — they are documented in
+  each entry's `description` below, mirroring the upstream README.
+functions:
+  - name: Filter
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: predicate, type: Lambda }
+    description: |
+      Returns a new pcommon.Slice or pcommon.Map containing only the
+      elements for which `predicate` evaluates to true.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `predicate` is a lambda expression with exactly two parameters and a
+      boolean result. The first parameter is the element index when
+      filtering a slice (int64), or the element key when filtering a map
+      (string). The second parameter is the element value. Use `_` as a
+      parameter name to ignore unused parameters.
+
+      If `source` is not a slice or map, or if `predicate` does not return
+      a boolean, it returns an error.
+    examples:
+      - 'Filter(log.attributes["tags"], (_, v) => v == "prod")'
+      - 'Filter(log.attributes, (k, _) => HasPrefix(k, "http."))'
+    since: "v0.157.0"
+
+  - name: MapEach
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: mapper, type: Lambda }
+    description: |
+      Returns a new pcommon.Slice or pcommon.Map with each element value
+      transformed by `mapper`.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `mapper` is a lambda expression with exactly two parameters. The
+      first parameter is the element index when mapping a slice (int64),
+      or the element key when mapping a map (string). The second
+      parameter is the element value. Use `_` as a parameter name to
+      ignore unused parameters.
+
+      If `source` is not a slice or map, it returns an error.
+    examples:
+      - 'MapEach(log.attributes["counts"], (_, v) => Int(v) * 2)'
+      - 'MapEach(log.attributes, (_, v) => String(v))'
+    since: "v0.157.0"
+
+  - name: MapKeys
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: source, type: Getter<PMap> }
+      - { name: keyMapper, type: Lambda }
+    description: |
+      Returns a new pcommon.Map with each key transformed by `keyMapper`.
+      Values are unchanged.
+
+      `source` is a path expression or another getter that resolves to a
+      map.
+
+      `keyMapper` is a lambda expression with exactly two parameters that
+      returns a string. The first parameter is the element key (string).
+      The second parameter is the element value. Use `_` as a parameter
+      name to ignore unused parameters.
+
+      If `keyMapper` produces duplicate keys, only one value is retained
+      and which one is unspecified.
+
+      If `source` is not a map, or if `keyMapper` does not return a
+      string, it returns an error.
+    examples:
+      - 'MapKeys(log.attributes, (k, _) => Concat(["http.", k], ""))'
+    since: "v0.157.0"
+
+  - name: Any
+    kind: converter
+    returnType: Bool
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: predicate, type: Lambda }
+    description: |
+      Returns true if `predicate` evaluates to true for at least one
+      element in `source`.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `predicate` is a lambda expression with exactly two parameters and a
+      boolean result. The first parameter is the element index when
+      evaluating a slice (int64), or the element key when evaluating a
+      map (string). The second parameter is the element value. Use `_` as
+      a parameter name to ignore unused parameters.
+
+      An empty slice or map returns false.
+
+      If `source` is not a slice or map, or if `predicate` does not return
+      a boolean, it returns an error.
+    examples:
+      - 'Any(log.attributes["tags"], (_, v) => v == "prod")'
+    since: "v0.157.0"
+
+  - name: All
+    kind: converter
+    returnType: Bool
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: predicate, type: Lambda }
+    description: |
+      Returns true if `predicate` evaluates to true for every element in
+      `source`.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `predicate` is a lambda expression with exactly two parameters and a
+      boolean result. The first parameter is the element index when
+      evaluating a slice (int64), or the element key when evaluating a
+      map (string). The second parameter is the element value. Use `_` as
+      a parameter name to ignore unused parameters.
+
+      An empty slice or map returns true.
+
+      If `source` is not a slice or map, or if `predicate` does not return
+      a boolean, it returns an error.
+    examples:
+      - 'All(log.attributes["tags"], (_, v) => v == "prod")'
+    since: "v0.157.0"
+
+  - name: Find
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: predicate, type: Lambda }
+      - { name: mapper, type: Optional<Lambda>, optional: true }
+    description: |
+      Returns the value of the first element in `source` for which
+      `predicate` evaluates to true. If no element matches, it returns
+      nil.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `predicate` is a lambda expression with exactly two parameters and a
+      boolean result. The first parameter is the element index when
+      searching a slice (int64), or the element key when searching a map
+      (string). The second parameter is the element value. Use `_` as a
+      parameter name to ignore unused parameters.
+
+      `mapper` is an optional lambda expression with exactly two
+      parameters. When provided, it transforms the matched element before
+      returning it. The first parameter is the found element index or
+      key, and the second parameter is the element value. When omitted,
+      the matched value is returned as-is.
+
+      If `source` is not a slice or map, or if `predicate` does not return
+      a boolean, it returns an error.
+    examples:
+      - 'Find(log.attributes["tags"], (_, v) => v == "prod")'
+    since: "v0.157.0"
+
+  - name: Reduce
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: source, type: Getter<Any> }
+      - { name: seed, type: Getter<Any> }
+      - { name: accumulator, type: Lambda }
+    description: |
+      Folds `source` into a single value, starting from `seed` and
+      applying `accumulator` to each element.
+
+      `source` is a path expression or another getter that resolves to a
+      slice or map.
+
+      `seed` is the initial accumulator value.
+
+      `accumulator` is a lambda expression with exactly three parameters.
+      The first parameter is the current accumulator value. The second
+      parameter is the element index when reducing a slice (int64), or
+      the element key when reducing a map (string). The third parameter
+      is the element value. Use `_` as a parameter name to ignore unused
+      parameters.
+
+      An empty slice or map returns `seed` unchanged. For maps, element
+      processing order follows map iteration and is not guaranteed to be
+      stable; this matters when `accumulator` is not commutative.
+
+      If `source` is not a slice or map, it returns an error.
+    examples:
+      - 'Reduce(log.attributes["nums"], 0, (acc, _, v) => acc + Int(v))'
+    since: "v0.157.0"
+
+  - name: When
+    kind: converter
+    returnType: Any
+    parameters:
+      - { name: condition, type: Lambda }
+      - { name: trueValue, type: Getter<Any> }
+      - { name: falseValue, type: Getter<Any> }
+    description: |
+      Returns `trueValue` when `condition` evaluates to true, otherwise
+      returns `falseValue`.
+
+      `condition` is a lambda expression with no parameters that returns a
+      boolean.
+
+      `trueValue` and `falseValue` are OTTL expressions or literal values.
+
+      If `condition` does not return a boolean, it returns an error.
+    examples:
+      - 'When(() => IsMap(log.attributes), "map", "not map")'
+      - 'When(() => attributes["int_value"] > 0, "positive", "negative")'
+    since: "v0.157.0"

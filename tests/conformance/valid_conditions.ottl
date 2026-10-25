@@ -29,3 +29,7 @@ IsMatch(resource.attributes["host.name"], "pod-*")
 
 # Null/nil checks
 attributes["optional"] != nil
+
+# Lambda expressions (SPEC §3.7) as boolean converters
+Any(attributes["tags"], (_, v) => v == "prod")
+All(attributes["tags"], (_, v) => v == "prod")

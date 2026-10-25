@@ -133,6 +133,40 @@ Registry entry:
     - 'Concat([attributes["a"], attributes["b"]], "-")'
 ```
 
+## Worked example — `Filter` (converter, lambda argument)
+
+Upstream source:
+
+```go
+type FilterArguments[K any] struct {
+    Source    ottl.Getter[K]
+    Predicate *ottl.LambdaExpression[K]
+}
+NewFactory("Filter", &FilterArguments[K]{}, ...)
+```
+
+Registry entry:
+
+```yaml
+- name: Filter
+  kind: converter
+  returnType: Any
+  parameters:
+    - name: source
+      type: Getter<Any>
+    - name: predicate
+      type: Lambda # SPEC §3.7 — arity/roles documented in `description`
+  description: |
+    predicate is a lambda expression with exactly two parameters and a
+    boolean result: (index-or-key, value) => Bool.
+  examples:
+    - 'Filter(log.attributes["tags"], (_, v) => v == "prod")'
+```
+
+`Lambda` carries no arity or parameter-role information in the type language itself
+(§10.3) — those constraints are function-specific and documented in prose, exactly as
+the untyped `*ottl.LambdaExpression[K]` Go field carries none either.
+
 ## Overlay / extension registries
 
 Processor-specific registries declare `extends: [ottlfuncs]` and list only the functions they add (or override). Tooling resolves a flat function table by left-to-right merge, last-write-wins per `name`. See:
@@ -141,6 +175,7 @@ Processor-specific registries declare `extends: [ottlfuncs]` and list only the f
 - [`transformprocessor.yaml`](./transformprocessor.yaml) — adds 14 metric editors/converters + 1 trace editor
 - [`filterprocessor.yaml`](./filterprocessor.yaml) — adds `HasAttrOnDatapoint`, `HasAttrKeyOnDatapoint`; only converters
 - [`routingconnector.yaml`](./routingconnector.yaml) — restricts the base to standard converters + `delete_key`/`delete_matching_keys`, adds `route`
+- [`ottlfuncs-lambda.yaml`](./ottlfuncs-lambda.yaml) — adds the 8 experimental higher-order converters (`Filter`, `MapEach`, `MapKeys`, `Any`, `All`, `Find`, `Reduce`, `When`) that accept lambda expressions (SPEC §3.7); gated by `ottl.functions.enableLambda`
 
 ## Mapping cheatsheet (Go → §10.3)
 
@@ -159,6 +194,7 @@ Processor-specific registries declare `extends: [ottlfuncs]` and list only the f
 | `ottl.TimeGetter[K]`                               | `Getter<Time>`                                        |
 | `ottl.DurationGetter[K]`                           | `Getter<Duration>`                                    |
 | `ottl.FunctionGetter[K]`                           | `FunctionRef`                                         |
+| `*ottl.LambdaExpression[K]`                        | `Lambda`                                               |
 | `ottl.Optional[T]`                                 | `Optional<T'>`                                        |
 | `[]T` _(field type)_                               | `List<T'>` _(or `variadic: true` if positional tail)_ |
 | `string` / `int64` / `float64` / `bool` / `[]byte` | `String` / `Int` / `Float` / `Bool` / `Bytes`         |

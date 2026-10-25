@@ -48,6 +48,7 @@ $(STAMP): $(GRAMMAR)
 
 conformance: build
 	ANTLR_JAR="$(ANTLR_JAR)" ./tests/run_conformance.sh
+	ANTLR_JAR="$(ANTLR_JAR)" ./tests/run_conformance.sh tests/conformance/lambda_invalid_statements.ottl statement --expect-fail
 
 test: conformance
 
