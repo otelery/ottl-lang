@@ -1,10 +1,10 @@
 schemaVersion: "1"
 name: ottlfuncs-lambda
 version: "0.0.0+unstable"
-ottlSpecVersion: "0.1"
+ottlSpecVersion: "0.2"
 sourceRef:
   repo: github.com/open-telemetry/opentelemetry-collector-contrib
-  path: pkg/ottl/ottlfuncs
+  path: pkg/ottl/xottl/ottlfuncs
 extends:
   - ottlfuncs
 notes: |

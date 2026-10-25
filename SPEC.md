@@ -1,6 +1,6 @@
 # OpenTelemetry Transformation Language — Specification
 
-**Status:** Draft 0.1
+**Status:** Draft 0.2
 **Source of truth:** This document. All parser implementations (ANTLR `.g4`, Tree-sitter `grammar.js`, TextMate `.tmLanguage.json`, LSP) MUST conform to it.
 **Reference implementation:** [`pkg/ottl`][upstream-pkg] in [`open-telemetry/opentelemetry-collector-contrib`][upstream-repo] ([`spec/grammar.go`][upstream-grammar], Participle).
 
@@ -222,7 +222,9 @@ comparison   ::= value comparisonOp value
 comparisonOp ::= EQ | NEQ | LTE | GTE | LT | GT
 ```
 
-### 3.7 Lambda expressions
+### 3.7 Lambda expressions (experimental)
+
+> **Status: experimental.** Upstream ships lambdas as `alpha`, behind the `ottl.functions.enableLambda` feature gate (disabled by default), and the lambda API and all functions that accept lambdas live in the experimental `xottl` module. They are **not** covered by OTTL's stability guarantee (traces, metrics and logs signals promoted to stable in [#51236](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/51236)). The syntax below may change or be removed without a major spec version. A conformant parser SHOULD accept it; a host that does not enable lambdas MUST reject it (§4.9).
 
 ```
 lambda      ::= LPAREN (lambdaParam (COMMA lambdaParam)*)? RPAREN ARROW lambdaBody
@@ -232,8 +234,10 @@ lambdaBody  ::= value
 ```
 
 A lambda expression is inline logic passed to a higher-order function (e.g. `Filter`,
-`MapEach`, `When` — see Appendix A / the function registry for the full catalog). Lambdas
-occur only in `value` position — i.e. as function arguments — never as a statement or a
+`MapEach`, `When` — see [`functions/ottlfuncs-lambda.yaml`](./functions/ottlfuncs-lambda.yaml)
+for the catalog). Syntactically a lambda is a `value`, so the grammar admits it wherever a
+value is allowed. It is only meaningful as an argument of a function whose parameter has
+type `Lambda` (§10.3); the host rejects it anywhere else. It is never a statement or a
 bare top-level expression.
 
 `lambdaParam` names introduce local identifiers scoped to `lambdaBody`; `_` marks a
@@ -328,9 +332,12 @@ See `LANGUAGE.md` §Comparison Rules. Numeric comparisons widen to `float64` whe
 ### 4.9 Lambda constraints
 
 - A lambda `lambdaBody` MUST NOT itself be a `lambda` (e.g. `(x) => (y) => x + y` is
-  grammatically accepted but MUST be rejected post-parse). A body that resolves to a
-  lambda expression does not retain the outer lambda's parameter scope, so nesting has
-  no well-defined semantics.
+  grammatically accepted but MUST be rejected post-parse with
+  `lambda body cannot result into another lambda expression`). A body that evaluates to a
+  lambda does not retain the outer lambda's parameter bindings. A lambda nested _inside_ a
+  body, for example as an argument of a function call, is allowed and may read the outer
+  parameters: `(_, a) => Any(xs, (_, b) => a == b)`.
+- Parameter names other than `_` MUST be unique within one lambda; `_` may repeat.
 - A conformant host MUST reject any statement or condition containing a `lambda` value
   unless the host's lambda-functions feature is enabled (upstream: the
   `ottl.functions.enableLambda` feature gate). The grammar always accepts the syntax;
@@ -338,8 +345,9 @@ See `LANGUAGE.md` §Comparison Rules. Numeric comparisons widen to `float64` whe
 - Parameter arity and role (e.g. "index-or-key, then value" for `Filter`) are validated
   per function by the host against its function registry (§10); the grammar only
   constrains the parameter list shape (§3.7).
-- `lambdaParam` names are scoped to `lambdaBody` and shadow any outer path/context
-  identifier of the same name for the duration of the lambda.
+- `lambdaParam` names are scoped to `lambdaBody`. An inner parameter shadows an outer lambda
+  parameter, and a parameter shadows a path context or field of the same name, for the
+  duration of the lambda.
 
 ---
 
@@ -416,6 +424,7 @@ This document is versioned independently of the upstream collector. Version incr
 | Version | Date       | Notes                                                                   |
 | ------- | ---------- | ----------------------------------------------------------------------- |
 | 0.1     | 2026-05-10 | Initial draft from `OTTL.g4` and [`spec/grammar.go`][upstream-grammar]. |
+| 0.2     | 2026-10-25 | Add experimental lambda expressions (§2.5, §3.7, §4.9, `Lambda` type).  |
 
 ---
 

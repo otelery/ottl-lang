@@ -840,3 +840,12 @@ set(attributes["x"], When(() => attributes["int_value"] > 0, "positive", "negati
 
 # Test 242: Lambda body that is itself a boolean expression with and/or
 set(attributes["x"], Any(log.attributes["tags"], (_, v) => v == "prod" or v == "staging"))
+
+# Test 243: Zero-parameter lambda, parenthesized math body
+set(attributes["x"], When(() => (attributes["a"] + 1) * 2 > 0, "pos", "neg"))
+
+# Test 244: Nested lambda inside a body, reading the outer parameter
+set(attributes["x"], Filter(log.attributes["xs"], (_, a) => Any(log.attributes["ys"], (_, b) => a == b)))
+
+# Test 245: Lambda statement with where clause
+set(attributes["x"], MapEach(log.attributes["counts"], (_, v) => v + 1)) where log.body != nil

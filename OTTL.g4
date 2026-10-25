@@ -104,8 +104,9 @@ value
 // Lambda expressions (SPEC §3.7)
 // -----------------------------------------------
 
-// Lambdas only appear in value position (as function arguments). A lambda
-// body that is itself another lambda is rejected post-parse (SPEC §4).
+// Experimental (alpha upstream). Syntactically a lambda is a `value`; hosts
+// accept it only as an argument of a Lambda-typed parameter. A lambda body
+// that is itself another lambda is rejected post-parse (SPEC §4.9).
 // Whether lambda arguments are accepted at all is gated by the host feature
 // flag `ottl.functions.enableLambda` (SPEC §4) — the grammar always accepts
 // the syntax.

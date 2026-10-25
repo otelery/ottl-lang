@@ -1,0 +1,8 @@
+# Inputs that MUST be rejected by the lambda grammar (SPEC §3.7). Run with: run_conformance.sh <file> statement --expect-fail
+set(attributes["x"], Map((Value) => Value))
+set(attributes["x"], Map((1) => 1))
+set(attributes["x"], Map((a b) => a))
+set(attributes["x"], Map((a,) => a))
+set(attributes["x"], Map((a) =>))
+set(attributes["x"], Map(a => a))
+set(attributes["x"], Map((a) -> a))
