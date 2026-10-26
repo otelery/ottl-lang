@@ -1,0 +1,5 @@
+# Condition inputs the upstream parser rejects (SPEC §3.6).
+not not true
+x == Foo
+aB == 1
+x == --1

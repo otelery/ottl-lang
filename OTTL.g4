@@ -12,9 +12,9 @@ grammar OTTL;
  * enforced post-parse by the host.
  *
  * Divergences from spec/grammar.go (the upstream Participle grammar):
- *   1. Identifiers are tokenized as a single mixed-case token (SPEC §2.5
- *      alternative), not as concatenated lower/upper runs. Same accepted
- *      language; token stream differs.
+ *   1. Identifiers use whole-identifier tokens (*_RUN / *_MIXED), not
+ *      concatenated lower/upper runs. Same accepted language; token
+ *      stream differs.
  *   2. `editor` does NOT permit trailing keys — SPEC §4.5 says new
  *      implementations MUST reject this at the grammar level. Upstream
  *      accepts it and rejects post-parse for backwards compatibility.
@@ -53,6 +53,11 @@ condition
     : booleanExpr EOF
     ;
 
+// Bare value (upstream ValueExpression; used by differential tests)
+valueEntry
+    : value EOF
+    ;
+
 // SPEC §3.2
 whereClause
     : WHERE booleanExpr
@@ -64,23 +69,47 @@ whereClause
 
 // Editor: lowercase first letter, no trailing keys (SPEC §4.5).
 editor
-    : LOWER_ID LPAREN arguments? RPAREN
+    : lowerName LPAREN arguments? RPAREN
     ;
 
 // Converter: uppercase first letter, optional trailing keys.
 converter
-    : UPPER_ID LPAREN arguments? RPAREN keys?
+    : upperName LPAREN arguments? RPAREN keys?
     ;
 
 arguments
     : argument (COMMA argument)*
     ;
 
-// Named (`name=value`) or positional. The bare UPPER_ID alternative
+// Named (`name=value`) or positional. The bare upperName alternative
 // allows passing a converter/enum reference by name (SPEC §3.2).
 argument
-    : (LOWER_ID EQUAL)? value
-    | (LOWER_ID EQUAL)? UPPER_ID
+    : (lowerName EQUAL)? value
+    | (lowerName EQUAL)? functionName
+    ;
+
+// Identifier classes (SPEC §2.5). Like upstream, the lexer produces
+// lowercase and uppercase *runs*; editor, converter and argument names glue
+// runs together at the parser level (whitespace between runs is skipped, so
+// `S plit(` is `Split(` upstream — a reference-implementation quirk).
+// Path fields, path contexts, lambda parameters and enums are a single run.
+lowerName                                   // editors, argument names
+    : (LOWER_RUN | WHERE | KEYWORD_GLUE) (LOWER_RUN | UPPER_RUN | WHERE | KEYWORD_GLUE)*
+    ;
+
+fieldName                                   // path fields / contexts, lambda params
+    : LOWER_RUN | WHERE
+    ;
+
+// A bare function reference. Upstream tries `value` first and does not
+// backtrack, so an all-caps run followed by another uppercase run is an enum
+// plus a syntax error; a reference needs a lowercase run after the first one.
+functionName
+    : UPPER_RUN ((LOWER_RUN | WHERE | KEYWORD_GLUE) (LOWER_RUN | UPPER_RUN | WHERE | KEYWORD_GLUE)*)?
+    ;
+
+upperName                                   // converters
+    : UPPER_RUN (LOWER_RUN | UPPER_RUN | WHERE | KEYWORD_GLUE)*
     ;
 
 // -----------------------------------------------
@@ -115,7 +144,7 @@ lambda
     ;
 
 lambdaParam
-    : LOWER_ID
+    : fieldName
     | UNDERSCORE
     ;
 
@@ -126,11 +155,11 @@ lambdaBody
     | booleanExpr
     ;
 
-// SPEC §4.2: UPPER_ID without `(` is an enum. Disambiguation is left to
+// SPEC §4.2: an all-caps UPPER_RUN without `(` is an enum. Disambiguation is left to
 // ANTLR adaptive prediction; the converter alternative inside
 // mathExprLiteral wins when LPAREN follows.
 enumValue
-    : UPPER_ID
+    : UPPER_RUN
     ;
 
 // -----------------------------------------------
@@ -138,12 +167,12 @@ enumValue
 // -----------------------------------------------
 
 path
-    : LOWER_ID DOT field (DOT field)*    // with context
+    : fieldName DOT field (DOT field)*    // with context
     | field (DOT field)*                  // without context
     ;
 
 field
-    : LOWER_ID keys?
+    : fieldName keys?
     ;
 
 keys
@@ -169,8 +198,9 @@ listValue
     : LBRACKET (value (COMMA value)*)? RBRACKET
     ;
 
+// Upstream: `'{' (@@ ','?)* '}'` — the comma after each item is optional.
 mapValue
-    : LBRACE (mapItem (COMMA mapItem)* COMMA?)? RBRACE
+    : LBRACE (mapItem COMMA?)* RBRACE
     ;
 
 mapItem
@@ -189,9 +219,9 @@ addSubTerm
     : mathValue ((MULT | DIV) mathValue)*
     ;
 
+// A single optional unary sign (SPEC §3.5); the lexer has no signed numbers.
 mathValue
-    : mathExprLiteral
-    | LPAREN mathExpression RPAREN
+    : (PLUS | MINUS)? (mathExprLiteral | LPAREN mathExpression RPAREN)
     ;
 
 // SPEC §4.4: `editor` is included here so that the parser can issue a
@@ -254,10 +284,12 @@ BOOLEAN : 'true' | 'false' ;
 
 // Literals (SPEC §2.3) — order matters: BYTES before INT (0x prefix),
 // FLOAT before INT (decimal point).
-BYTES   : '0x' [a-fA-F0-9]+ ;
-FLOAT   : SIGN? DIGIT* '.' DIGIT+ ([eE] SIGN? DIGIT+)? ;
-INT     : SIGN? DIGIT+ ;
-STRING  : '"' ( '\\' . | ~[\\"] )* '"' ;
+BYTES   : '0x' (HEX HEX)+ ;                       // even number of digits (upstream capture check)
+FLOAT   : (DIGIT+ '.' DIGIT* | DIGIT* '.' DIGIT+) ([eE] SIGN? DIGIT+)? ;
+INT     : DIGIT+ ;
+// Go interpreted-string rules: upstream unquotes with strconv.Unquote, which
+// (via participle) rejects unknown escapes (`\q`, `\'`), 1-2 digit octals, etc.
+STRING  : '"' ( ESC | ~[\\"] )* '"' ;
 
 // Operators (SPEC §2.4) — multi-char before single-char.
 EQ      : '==' ;
@@ -284,12 +316,17 @@ COMMA    : ',' ;
 COLON    : ':' ;
 SEMI     : ';' ;
 
-// Identifiers (SPEC §2.5) — single-token mixed-case strategy.
-UPPER_ID : [A-Z] [a-zA-Z0-9_]* ;
-LOWER_ID : [a-z] [a-zA-Z0-9_]* ;
+// Upstream keywords match with `\b` word boundaries, so `andTest` is the
+// lowercase run `and` followed by the uppercase run `Test`, not the keyword.
+// Longest match gives us the same split via a dedicated token.
+KEYWORD_GLUE : ('not' | 'and' | 'or' | 'nil' | 'true' | 'false') [A-Z] [A-Z0-9_]* ;
 
-// Blank lambda parameter (SPEC §3.7) — standalone underscore only; `_` as
-// part of an identifier is absorbed by UPPER_ID/LOWER_ID above.
+// Identifier runs (SPEC §2.5); `_` alone is the blank lambda parameter.
+LOWER_RUN : [a-z] [a-z0-9_]* ;
+UPPER_RUN : [A-Z] [A-Z0-9_]* ;
+
+// Blank lambda parameter (SPEC §3.7) — a bare underscore only; `_` inside a
+// longer run is absorbed by the run tokens above.
 UNDERSCORE : '_' ;
 
 // Whitespace and comments (SPEC §6.2 extension) — skipped.
@@ -299,4 +336,10 @@ BLOCK_COMMENT : '/*' .*? '*/'       -> skip ;
 
 // Fragments
 fragment SIGN  : [+\-] ;
+fragment ESC   : '\\' ( [abfnrtv\\"]
+                    | 'x' HEX HEX
+                    | [0-3] [0-7] [0-7]
+                    | 'u' ( [0-9a-cA-CeEfF] HEX HEX HEX | [dD] [0-7] HEX HEX )
+                    | 'U00' ( '10' | '0' HEX ) HEX HEX HEX HEX ) ;
 fragment DIGIT : [0-9] ;
+fragment HEX   : [0-9a-fA-F] ;

@@ -5,20 +5,53 @@
  * surfaced as parse-time choices where possible, otherwise left to the
  * host (LSP, formatter).
  *
+ * Lexical model (SPEC §2.5): like upstream, identifiers are lowercase and
+ * uppercase *runs*. Editor, converter and argument names glue runs together
+ * (whitespace between runs is skipped); path fields, path contexts, lambda
+ * parameters and enums are a single run.
+ *
  * Generation:
  *   npx tree-sitter generate
  *   npx tree-sitter test
  */
+
+const HEX = "[0-9a-fA-F]";
+
+// Upstream lexes `not`, `and`, `or`, `nil`, `true` and `false` as keyword tokens
+// (with `\b` boundaries), so a lowercase run equal to one of them is never an
+// identifier. Tree-sitter regexes have no lookahead, so build "[a-z][a-z0-9_]*
+// except these exact words" as an explicit prefix-tree regex.
+const KEYWORDS = ["not", "and", "or", "nil", "true", "false"];
+const RUN_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_".split("");
+function runExcept(words) {
+  const trie = {};
+  for (const w of words) {
+    let n = trie;
+    for (const c of w) n = n[c] = n[c] || {};
+    n.$ = true;
+  }
+  const node = (n, root) => {
+    const kids = Object.keys(n).filter((k) => k !== "$");
+    const first = root ? RUN_CHARS.slice(0, 26) : RUN_CHARS;
+    const others = first.filter((c) => !kids.includes(c)).join("");
+    const alts = [];
+    if (!root && !n.$) alts.push("");
+    if (others) alts.push(`[${others}][a-z0-9_]*`);
+    for (const k of kids) alts.push(`${k}${node(n[k], false)}`);
+    return `(${alts.join("|")})`;
+  };
+  return new RegExp(node(trie, true));
+}
 
 module.exports = grammar({
   name: "ottl",
 
   extras: ($) => [/\s/, $.line_comment, $.block_comment],
 
-  word: ($) => $.lower_id,
+  word: ($) => $.lower_run,
 
   // SPEC §5 — operator precedence (lowest to highest)
-  precedences: () => [["or", "and", "not", "comparison", "additive", "multiplicative"]],
+  precedences: () => [["or", "and", "comparison", "additive", "multiplicative"]],
 
   // GLR conflicts: a converter can appear both as a boolean atom (returning
   // bool) and as a math atom (returning numeric). The host's function
@@ -33,6 +66,9 @@ module.exports = grammar({
     // `(v)` is ambiguous between a lambda's single-parameter list and a
     // parenthesized math expression until `=>` (or its absence) is seen.
     [$.lambda_param, $.field],
+    // `Foo` as an enum value vs the start of a glued converter / function name.
+    [$.enum_value, $.upper_name],
+    [$.function_ref],
   ],
 
   rules: {
@@ -44,21 +80,34 @@ module.exports = grammar({
     where_clause: ($) => seq("where", $.boolean_expr),
 
     // SPEC §3.2
-    editor: ($) => seq(field("name", $.lower_id), "(", optional($.arguments), ")"),
+    editor: ($) => seq(field("name", $.lower_name), "(", optional($.arguments), ")"),
     converter: ($) =>
-      seq(field("name", $.upper_id), "(", optional($.arguments), ")", optional($.keys)),
+      seq(field("name", $.upper_name), "(", optional($.arguments), ")", optional($.keys)),
 
     arguments: ($) => seq($.argument, repeat(seq(",", $.argument))),
-    // A bare UPPER_ID argument (e.g. `aggregate(metrics, Sum)`) is parsed as
-    // an `enum_value` and reinterpreted by the host as a function reference
-    // when the function's parameter type demands one (SPEC §3.2).
-    argument: ($) => seq(optional(seq(field("name", $.lower_id), "=")), $._value),
+    // A bare upper-case name argument (e.g. `aggregate(metrics, Sum)`) is an
+    // `enum_value`, or a `function_ref` when it is a mixed-case name; the host
+    // reinterprets either as a function reference when the parameter type
+    // demands one (SPEC §3.2).
+    argument: ($) =>
+      seq(
+        optional(seq(field("name", $.lower_name), "=")),
+        choice($._value, $.function_ref),
+      ),
+    // Upstream tries `value` first and does not backtrack: a reference needs a
+    // lowercase run after the first uppercase run (otherwise it is an enum).
+    function_ref: ($) =>
+      seq(
+        $.upper_run,
+        choice($.lower_run, "where"),
+        repeat(choice($.lower_run, $.upper_run, "where")),
+      ),
 
     // SPEC §3.3 — `_value` is hidden; expose specific kinds in the AST.
     _value: ($) =>
       choice(
         $.nil,
-        $.lambda,
+        $.lambda_expr,
         $.math_expression,
         $.bytes,
         $.string,
@@ -68,12 +117,9 @@ module.exports = grammar({
         $.list_value,
       ),
 
-    nil: () => "nil",
-    boolean: () => choice("true", "false"),
-    enum_value: ($) => $.upper_id,
-
-    // SPEC §3.7 — lambdas only occur in value position (function arguments).
-    lambda: ($) =>
+    // SPEC §3.7 — experimental (alpha upstream). `(` is shared with parenthesized
+    // math; the `=>` after `)` disambiguates.
+    lambda_expr: ($) =>
       seq(
         "(",
         optional(seq($.lambda_param, repeat(seq(",", $.lambda_param)))),
@@ -81,43 +127,50 @@ module.exports = grammar({
         "=>",
         $.lambda_body,
       ),
-    lambda_param: ($) => choice($.lower_id, $.underscore),
-    // `_value` is tried before `boolean_expr` (SPEC §3.7): a body like `v * 2`
-    // parses as a value while `v == "prod"` falls back to a boolean expr.
+    lambda_param: ($) => choice($._field_name, $.blank),
     lambda_body: ($) => choice($._value, $.boolean_expr),
-    underscore: () => "_",
+    blank: () => "_",
+
+    nil: () => "nil",
+    boolean: () => choice("true", "false"),
+    // An all-caps run; a mixed-case name is only valid as a call or function_ref.
+    enum_value: ($) => $.upper_run,
 
     list_value: ($) => seq("[", optional(seq($._value, repeat(seq(",", $._value)))), "]"),
-    map_value: ($) =>
-      seq("{", optional(seq($.map_item, repeat(seq(",", $.map_item)), optional(","))), "}"),
+    // Upstream: `'{' (@@ ','?)* '}'` — the comma after each item is optional.
+    map_value: ($) => seq("{", repeat(seq($.map_item, optional(","))), "}"),
     map_item: ($) => seq(field("key", $.string), ":", field("value", $._value)),
 
     // SPEC §3.4 — the first segment is interpreted by the host as a context
     // identifier when there is more than one segment.
     path: ($) => prec.left(seq($.field, repeat(seq(".", $.field)))),
-    field: ($) => seq($.lower_id, optional($.keys)),
+    field: ($) => seq($._field_name, optional($.keys)),
+    _field_name: ($) => choice($.lower_run, "where"),
     keys: ($) => repeat1($.key),
     key: ($) => seq("[", $._key_value, "]"),
     _key_value: ($) => choice($.string, $.int, $.math_expression),
 
-    // SPEC §3.5
+    // SPEC §3.5 — a single optional unary sign per operand.
     math_expression: ($) =>
       choice(
-        $._math_atom,
+        $._math_operand,
         prec.left("additive", seq($.math_expression, choice("+", "-"), $.math_expression)),
         prec.left("multiplicative", seq($.math_expression, choice("*", "/"), $.math_expression)),
       ),
+    _math_operand: ($) => choice($._math_atom, $.unary_expression),
+    unary_expression: ($) => seq(choice("+", "-"), $._math_atom),
     _math_atom: ($) =>
       choice($.editor, $.converter, $.float, $.int, $.path, seq("(", $.math_expression, ")")),
 
-    // SPEC §3.6
+    // SPEC §3.6 — `not` applies to a single boolean atom (no `not not`).
     boolean_expr: ($) =>
       choice(
-        $._boolean_atom,
+        $._boolean_operand,
         prec.left("or", seq($.boolean_expr, "or", $.boolean_expr)),
         prec.left("and", seq($.boolean_expr, "and", $.boolean_expr)),
-        prec("not", seq("not", $.boolean_expr)),
       ),
+    _boolean_operand: ($) => choice($._boolean_atom, $.not_expr),
+    not_expr: ($) => seq("not", $._boolean_atom),
     _boolean_atom: ($) =>
       choice($.comparison, $.boolean, $.converter, seq("(", $.boolean_expr, ")")),
     comparison: ($) =>
@@ -125,12 +178,20 @@ module.exports = grammar({
     comparison_op: () => choice("==", "!=", "<=", ">=", "<", ">"),
 
     // SPEC §2 — terminals
-    string: () => /"(\\.|[^\\"])*"/,
-    bytes: () => /0x[0-9a-fA-F]+/,
-    float: () => /[+-]?\d*\.\d+([eE][+-]?\d+)?/,
-    int: () => /[+-]?\d+/,
-    upper_id: () => /[A-Z][a-zA-Z0-9_]*/,
-    lower_id: () => /[a-z][a-zA-Z0-9_]*/,
+    // Go interpreted-string escapes only (upstream unquotes strings).
+    string: () =>
+      new RegExp(
+        `"(\\\\(["\\\\abfnrtv]|x${HEX}{2}|[0-3][0-7]{2}|u([0-9a-cA-CeEfF]${HEX}{3}|[dD][0-7]${HEX}{2})|U00(10|0${HEX})${HEX}{4})|[^\\\\"])*"`,
+      ),
+    bytes: () => new RegExp(`0x(${HEX}{2})+`),
+    float: () => /(\d+\.\d*|\d*\.\d+)([eE][+-]?\d+)?/,
+    int: () => /\d+/,
+    upper_run: () => /[A-Z][A-Z0-9_]*/,
+    lower_run: () => runExcept(KEYWORDS),
+    // Names glue runs together; whitespace between runs is skipped (upstream quirk).
+    lower_name: ($) =>
+      seq(choice($.lower_run, "where"), repeat(choice($.lower_run, $.upper_run, "where"))),
+    upper_name: ($) => seq($.upper_run, repeat(choice($.lower_run, $.upper_run, "where"))),
 
     // SPEC §6.2 (extension) — hosts may strip these before passing to upstream.
     line_comment: () => token(seq("//", /[^\r\n]*/)),

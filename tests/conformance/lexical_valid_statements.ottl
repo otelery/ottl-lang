@@ -1,0 +1,47 @@
+# Lexical and grammar corner cases that match upstream pkg/ottl (SPEC §2, §3).
+# Every line here is accepted by the upstream Participle parser; see tests/differential.
+
+# Numbers are unsigned tokens; the sign is a unary operator (SPEC §2.3, §3.5)
+set(a, 3.)
+set(a, .5)
+set(a, 3.e5)
+set(a, -x)
+set(a, +x)
+set(a, -(1+2))
+set(a, 1 - -2)
+set(a, 1-2)
+set(a, 1 -2)
+set(a, -Len(x))
+
+# Bytes: even number of hex digits
+set(a, 0xabcd)
+
+# Strings: Go interpreted escapes
+set(a, "\x41é\101\t\\\"")
+
+# Maps: the comma after each item is optional
+set(a, {"k":1 "j":2})
+set(a, {"k":1,})
+set(a, {})
+
+# `where` is an ordinary lowercase run
+set(where, 1)
+set(a, where.x)
+set(a, x.where)
+where(1)
+
+# Keywords only at word boundaries
+set(a, nilx)
+set(a, notx)
+set(a, truefalse)
+
+# Identifier classes: single-run path fields and enums, mixed-case editor/converter/argument names
+set(headerDelimiter=1)
+set(a, Fn(Sum))
+set(a, Fn(Foo_Bar))
+set(a, Fn(x=B))
+set(a, B_1)
+set(a, SPAN_KIND_SERVER)
+set(a, x[1])
+set(a, x[(1)+1])
+set(a, x[-1])

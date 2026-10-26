@@ -57,6 +57,12 @@ The version policy for `SPEC.md` is documented in §8 of that document.
 
 ### Changed
 
+- **Lexical and grammar fixes to match upstream `pkg/ottl`** (`SPEC.md` §2.2–§2.5, §3.3–§3.6, §4.1–§4.2; `OTTL.g4`;
+  `tree-sitter-ottl`): numbers are unsigned tokens with a unary `+`/`-` operator (`-(1)`, `3.`, `1.e5` are valid); bytes
+  need an even number of digits; strings accept only Go escapes; identifiers are lowercase/uppercase runs (path fields,
+  contexts, lambda parameters and enums are a single run, so `aB.x` and `x == Foo` are errors; editor, converter and
+  argument names may mix cases); `where` is not reserved; keywords need word boundaries; map items take an optional
+  comma; `not` applies once; a bare function reference needs a lowercase run after its first uppercase run.
 - **`tests/run_conformance.sh`** no longer hardcodes the Homebrew ANTLR
   jar path. It now reuses the same autodetection as the Makefile and
   honours `$ANTLR_JAR` when set. The "parser missing" error message

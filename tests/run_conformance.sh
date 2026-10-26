@@ -77,6 +77,7 @@ if [[ ${#FILES[@]} -eq 0 ]]; then
     FILES=(
         "$ROOT/tests/conformance/valid_statements.ottl"
         "$ROOT/tests/conformance/valid_conditions.ottl:condition"
+        "$ROOT/tests/conformance/lexical_valid_statements.ottl"
     )
 fi
 
