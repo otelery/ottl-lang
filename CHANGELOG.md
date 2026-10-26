@@ -10,6 +10,11 @@ The version policy for `SPEC.md` is documented in §8 of that document.
 
 ### Added
 
+- **Differential parser tests** (`tests/differential/`): run the upstream Participle parser (oracle), `OTTL.g4` and
+  `tree-sitter-ottl` over the conformance corpus, hand-written edge cases, mutations and random derivations from the
+  spec grammar, and report every disagreement. Found and fixed the divergences below.
+- `tests/conformance/lexical_{valid,invalid}_{statements,conditions}.ottl` covering them, each verified against upstream.
+
 - **Lambda expressions** (`(params) => body`, SPEC §3.7), matching upstream
   Collector Contrib v0.157.0. **Experimental**: alpha upstream, gated by
   `ottl.functions.enableLambda`, with the API and the eight functions in the

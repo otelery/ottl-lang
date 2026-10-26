@@ -22,13 +22,14 @@ ANTLR_JAR := $(firstword $(wildcard \
     $(HOME)/.local/share/antlr/antlr-*-complete.jar))
 endif
 
-.PHONY: help build conformance test clean
+.PHONY: help build conformance test differential clean
 
 help:
 	@echo "Targets:"
 	@echo "  build         Generate and compile the ANTLR Java parser"
 	@echo "  conformance   Run the conformance suites (depends on build)"
 	@echo "  test          Alias for conformance"
+	@echo "  differential  Compare ANTLR and Tree-sitter with upstream pkg/ottl (see tests/differential)"
 	@echo "  clean         Remove $(BUILD_DIR)"
 	@echo ""
 	@echo "Variables:"
@@ -53,6 +54,9 @@ conformance: build
 	ANTLR_JAR="$(ANTLR_JAR)" ./tests/run_conformance.sh tests/conformance/lexical_invalid_conditions.ottl condition --expect-fail
 
 test: conformance
+
+differential: build
+	ANTLR_JAR="$(ANTLR_JAR)" ./tests/differential/run.py
 
 clean:
 	rm -rf $(BUILD_DIR)
