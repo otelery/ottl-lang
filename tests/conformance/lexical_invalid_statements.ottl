@@ -1,0 +1,34 @@
+# Inputs the upstream parser rejects (SPEC §2, §3); see tests/differential.
+
+# Path fields, contexts and enums are a single lowercase / all-caps run
+set(a, aB)
+set(a, x.aB)
+set(a, aB.x)
+set(a, [Foo])
+
+# Bytes need an even number of digits
+set(a, 0xabc)
+set(a, 0x)
+
+# One unary sign only; no exponent without a dot
+set(a, --1)
+set(a, - -1)
+set(a, 3e5)
+set(a, 1..2)
+
+# Strings: only Go escapes
+set(a, "\q")
+set(a, "\'")
+set(a, "\0")
+
+# `_` is only a blank lambda parameter; keywords are not identifiers
+set(a, x[_])
+set(a, _.x)
+set(a, nil.x)
+set(a, x.not)
+set(a, x.true)
+
+# Maps and lists
+set(a, {,})
+set(a, {"k":1,,})
+set(a, [1,,2])

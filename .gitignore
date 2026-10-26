@@ -28,3 +28,7 @@ NOTICE
 .vscode/
 .claude/
 .envrc
+
+# Python bytecode
+__pycache__/
+*.pyc

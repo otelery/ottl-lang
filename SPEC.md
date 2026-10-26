@@ -39,10 +39,9 @@ OTTL has **no comment syntax**. Tooling MAY add comments at the file/config leve
 
 ### 2.2 Keywords
 
-The following identifiers are reserved and MUST NOT be used as editor, converter, path, or argument names:
+The following words are reserved and MUST NOT be used as editor, converter, path, or argument names:
 
 ```
-WHERE      ::= 'where'
 NOT        ::= 'not'
 AND        ::= 'and'
 OR         ::= 'or'
@@ -53,19 +52,30 @@ FALSE      ::= 'false'
 
 `true` and `false` together form the `BOOLEAN` token.
 
+A keyword is recognized only as a whole word: `not`, `nil`, … followed by a letter, digit or `_` is not a keyword (`nilx` is a lowercase run, and `andTest` is the lowercase run `and` followed by the uppercase run `Test`, see §2.5).
+
+`where` is **not** reserved. It is an ordinary lowercase run (`where.x` is a valid path, `where(…)` a valid editor name) and is recognized as the where-clause introducer only directly after an editor call (§3.2).
+
 ### 2.3 Literals
 
 ```
 BOOLEAN    ::= 'true' | 'false'
-BYTES      ::= '0x' [a-fA-F0-9]+
-FLOAT      ::= [+-]? [0-9]* '.' [0-9]+ ([eE] [+-]? [0-9]+)?
-INT        ::= [+-]? [0-9]+
-STRING     ::= '"' ( '\' . | [^\\"] )* '"'
+BYTES      ::= '0x' ([a-fA-F0-9] [a-fA-F0-9])+       /* even number of hex digits */
+FLOAT      ::= ( [0-9]+ '.' [0-9]* | [0-9]* '.' [0-9]+ ) ([eE] [+-]? [0-9]+)?
+INT        ::= [0-9]+
+STRING     ::= '"' ( ESCAPE | [^\\"] )* '"'
+ESCAPE     ::= '\\' ( [abfnrtv\\"]
+                    | 'x' HEX HEX
+                    | [0-3] [0-7] [0-7]
+                    | 'u' HEX{4}                    /* not a surrogate, D800–DFFF */
+                    | 'U' HEX{8} )                  /* a valid code point */
 ```
 
-Lexer precedence (longest-match, then declaration order): `BYTES` before `INT` (the `0x` prefix), `FLOAT` before `INT` (the decimal point), keywords before identifiers.
+Numeric tokens are **unsigned**: a leading `+` or `-` is the unary operator of §3.5, never part of the token. `3.` and `.5` are valid `FLOAT`s; `3e5` is not (an `INT` followed by an identifier).
 
-String escapes follow Go's interpreted string rules.
+Lexer precedence (longest-match, then declaration order): `BYTES` before `INT` (the `0x` prefix), `FLOAT` before `INT` (the decimal point), keywords before identifiers. `0xabc` (odd digit count) is a lexical error.
+
+String escapes are Go's interpreted-string escapes. An unknown escape such as `\q` or `\'` is an error, as is `\0` (octal escapes take exactly three digits). A raw newline inside a string is accepted.
 
 ### 2.4 Operators and punctuation
 
@@ -97,33 +107,46 @@ Multi-character operators MUST be matched before their single-character prefixes
 
 ### 2.5 Identifiers
 
-OTTL distinguishes identifiers by the case of their first character. The reference implementation tokenizes maximal lowercase and uppercase runs separately and concatenates them at the parser level; conformant lexers MAY instead emit a single token whose first character determines its class. Both strategies accept the same language.
+The reference implementation tokenizes **runs**: a lowercase run starts with `[a-z]`, an uppercase run with `[A-Z]`, and each continues over `[a-z0-9_]` / `[A-Z0-9_]` respectively. A change of letter case starts a new run. Whitespace between tokens is skipped.
 
 ```
-LOWER_ID   ::= [a-z] [a-zA-Z0-9_]*    /* editors, fields, argument names, path context */
-UPPER_ID   ::= [A-Z] [a-zA-Z0-9_]*    /* converters, enums */
+LOWER_RUN  ::= [a-z] [a-z0-9_]*
+UPPER_RUN  ::= [A-Z] [A-Z0-9_]*
 ```
+
+The grammar then builds the names it needs from runs:
+
+```
+lowerName  ::= LOWER_RUN (LOWER_RUN | UPPER_RUN)*     /* editors, argument names */
+upperName  ::= UPPER_RUN (LOWER_RUN | UPPER_RUN)*     /* converters, function references */
+fieldName  ::= LOWER_RUN                              /* path fields and contexts, lambda parameters */
+enumName   ::= UPPER_RUN                              /* not followed by a LOWER_RUN, see §4.2 */
+```
+
+Consequences that differ from a naive "identifier" token:
+
+- A path field, context, lambda parameter or enum is a **single run**. `aB.x`, `a.bC` and `x == Foo` are syntax errors; `a_b`, `attributes` and `SPAN_KIND_SERVER` are fine. Only editor, converter and argument names may mix cases (`headerDelimiter`, `ParseJSON`).
+- Because runs are joined _after_ whitespace is skipped, whitespace between runs inside a name is accepted: `S plit(…)` is `Split(…)`, and `resource resolveConflicts=true` names the argument `resourceresolveConflicts`. This is a reference-implementation quirk; conformant parsers are not required to reproduce it (the differential test classifies it as expected), and new code SHOULD NOT rely on it.
 
 Examples:
 
-| Token              | Class      | Used as        |
-| ------------------ | ---------- | -------------- |
-| `set`              | `LOWER_ID` | editor name    |
-| `attributes`       | `LOWER_ID` | path field     |
-| `headerDelimiter`  | `LOWER_ID` | named argument |
-| `ParseJSON`        | `UPPER_ID` | converter name |
-| `SPAN_KIND_SERVER` | `UPPER_ID` | enum symbol    |
+| Token              | Class       | Used as                               |
+| ------------------ | ----------- | ------------------------------------- |
+| `set`              | `lowerName` | editor name                           |
+| `attributes`       | `fieldName` | path field                            |
+| `headerDelimiter`  | `lowerName` | named argument (not a path field)     |
+| `ParseJSON`        | `upperName` | converter name (not an enum)          |
+| `SPAN_KIND_SERVER` | `enumName`  | enum symbol (or a converter with `(`) |
 
 > **Note (semantic, not lexical):** the _casing convention_ is enforced after parsing — see §4.1.
 
-A standalone underscore is tokenized separately from `LOWER_ID`:
+A standalone underscore is tokenized separately:
 
 ```
 UNDERSCORE ::= '_'                    /* blank lambda parameter, §3.7 */
 ```
 
-`_` as an interior or leading character of a longer run (e.g. `my_field`) is still absorbed
-into `LOWER_ID`/`UPPER_ID`; `UNDERSCORE` only matches the single bare character.
+`_` inside a longer run (e.g. `my_field`) is absorbed into that run; `UNDERSCORE` only matches a bare `_` that is not adjacent to another identifier character.
 
 ---
 
@@ -145,15 +168,15 @@ A multi-statement file rule is defined in §6.
 ```
 whereClause::= WHERE booleanExpr
 
-editor     ::= LOWER_ID LPAREN arguments? RPAREN
-converter  ::= UPPER_ID LPAREN arguments? RPAREN keys?
+editor     ::= lowerName LPAREN arguments? RPAREN
+converter  ::= upperName LPAREN arguments? RPAREN keys?
 
 arguments  ::= argument (COMMA argument)*
-argument   ::= (LOWER_ID EQUAL)? value
-             | (LOWER_ID EQUAL)? UPPER_ID    /* bare converter/enum name as argument */
+argument   ::= (lowerName EQUAL)? value
+             | (lowerName EQUAL)? upperName  /* bare converter name as argument */
 ```
 
-The bare-`UPPER_ID` alternative in `argument` allows passing a function reference by name (e.g. `aggregate(metrics, Sum)`); see the reference implementation's `argument.FunctionName` field.
+The bare-`upperName` alternative in `argument` (a mixed-case name such as `Sum`; an all-caps run parses as an enum value) allows passing a function reference by name (e.g. `aggregate(metrics, Sum)`); see the reference implementation's `argument.FunctionName` field.
 
 ### 3.3 Values
 
@@ -169,17 +192,17 @@ value      ::= NIL
              | mapValue
              | listValue
 
-enumValue  ::= UPPER_ID                       /* not followed by '(' — see §4.2 */
+enumValue  ::= enumName                       /* not followed by '(' — see §4.2 */
 listValue  ::= LBRACKET (value (COMMA value)*)? RBRACKET
-mapValue   ::= LBRACE (mapItem (COMMA mapItem)* COMMA?)? RBRACE
+mapValue   ::= LBRACE (mapItem COMMA?)* RBRACE   /* the comma after each item is optional */
 mapItem    ::= STRING COLON value
 ```
 
 ### 3.4 Paths and keys
 
 ```
-path       ::= (LOWER_ID DOT)? field (DOT field)*
-field      ::= LOWER_ID keys?
+path       ::= (fieldName DOT)? field (DOT field)*
+field      ::= fieldName keys?
 keys       ::= key+
 key        ::= LBRACKET keyValue RBRACKET
 keyValue   ::= STRING                         /* map key */
@@ -187,6 +210,8 @@ keyValue   ::= STRING                         /* map key */
              | mathExpression                 /* dynamic key */
              | mathExprLiteral                /* simple expression */
 ```
+
+> **Quirk:** the reference implementation tries `INT` before `mathExpression` in a key and does not backtrack, so a key that _starts_ with an integer literal must consist of that literal alone: `x[1]` is valid but `x[1+1]` and `x[2*y]` are syntax errors, while `x[(1)+1]`, `x[y+1]` and `x[-1]` are valid. Conformant parsers MAY accept the former.
 
 The first segment of a `path` (when present) is interpreted by the host as a _context_ identifier (`resource`, `span`, `metric`, `log`, `datapoint`, `instrumentation_scope`, …). The grammar does not enforce this — see §4.3.
 
@@ -197,8 +222,8 @@ Precedence (lowest to highest): additive < multiplicative < parenthesized.
 ```
 mathExpression ::= addSubTerm ((PLUS | MINUS) addSubTerm)*
 addSubTerm     ::= mathValue ((MULT | DIV) mathValue)*
-mathValue      ::= mathExprLiteral
-                 | LPAREN mathExpression RPAREN
+mathValue      ::= (PLUS | MINUS)? ( mathExprLiteral
+                                   | LPAREN mathExpression RPAREN )   /* at most one unary sign */
 mathExprLiteral::= editor                     /* SYNTACTIC ONLY — rejected, see §4.4 */
                  | converter
                  | FLOAT
@@ -208,7 +233,7 @@ mathExprLiteral::= editor                     /* SYNTACTIC ONLY — rejected, se
 
 ### 3.6 Boolean expressions
 
-Precedence (lowest to highest): `or` < `and` < `not` < parenthesized / atom.
+Precedence (lowest to highest): `or` < `and` < `not` < parenthesized / atom. `not` applies to a single `booleanValue`; `not not x` is a syntax error.
 
 ```
 booleanExpr  ::= orTerm (OR orTerm)*
@@ -228,7 +253,7 @@ comparisonOp ::= EQ | NEQ | LTE | GTE | LT | GT
 
 ```
 lambda      ::= LPAREN (lambdaParam (COMMA lambdaParam)*)? RPAREN ARROW lambdaBody
-lambdaParam ::= LOWER_ID | UNDERSCORE
+lambdaParam ::= fieldName | UNDERSCORE
 lambdaBody  ::= value
               | booleanExpr
 ```
@@ -243,11 +268,13 @@ bare top-level expression.
 `lambdaParam` names introduce local identifiers scoped to `lambdaBody`; `_` marks a
 parameter whose value is unused. The number and role of parameters (e.g. "index-or-key,
 then value") is defined per function by the host's function registry (§10), not by the
-grammar — the grammar only constrains parameters to a comma-separated list of `LOWER_ID`
+grammar — the grammar only constrains parameters to a comma-separated list of single lowercase runs (`fieldName`)
 or `_`.
 
 `lambdaBody` tries `value` before `booleanExpr`, so a body like `v * 2` parses as a math
 value while a body like `v == "prod"` or `a and b` falls back to a boolean expression.
+
+Upstream commits to a body greedily: a value body that is followed by `or`, `and` or a comparison operator becomes a boolean expression instead. So a lambda used as an operand of a comparison or boolean operator — `(x) => x == 1` as a whole condition, or `a < (x) => x or y` — is a syntax error upstream. `OTTL.g4` and the Tree-sitter grammar parse such inputs by ending the body early; hosts reject them anyway, because a lambda is only valid where a `Lambda`-typed parameter is declared. The differential test (§7) tolerates these.
 
 Examples:
 
@@ -267,25 +294,25 @@ These rules cannot be expressed in pure EBNF. Implementations MUST enforce them 
 
 ### 4.1 Identifier casing
 
-| Construct     | First character | Token rule used | Enforced by                  |
-| ------------- | --------------- | --------------- | ---------------------------- |
-| Editor        | lowercase       | `LOWER_ID`      | grammar (rule `editor`)      |
-| Converter     | uppercase       | `UPPER_ID`      | grammar (rule `converter`)   |
-| Enum          | uppercase       | `UPPER_ID`      | grammar (`enumValue`) + §4.2 |
-| Path field    | lowercase       | `LOWER_ID`      | grammar (rule `field`)       |
-| Argument name | lowercase       | `LOWER_ID`      | grammar (rule `argument`)    |
+| Construct     | First character | Name rule   | Enforced by                  |
+| ------------- | --------------- | ----------- | ---------------------------- |
+| Editor        | lowercase       | `lowerName` | grammar (rule `editor`)      |
+| Converter     | uppercase       | `upperName` | grammar (rule `converter`)   |
+| Enum          | uppercase       | `enumName`  | grammar (`enumValue`) + §4.2 |
+| Path field    | lowercase       | `fieldName` | grammar (rule `field`)       |
+| Argument name | lowercase       | `lowerName` | grammar (rule `argument`)    |
 
-If a parser encounters `UPPER_ID '(' ... ')'` where `editor` is expected, it MUST emit:
+If a parser encounters `upperName '(' ... ')'` where `editor` is expected, it MUST emit:
 
 > `editor names must start with a lowercase letter but got '<Name>'`
 
-If a parser encounters `LOWER_ID '(' ... ')'` inside a `mathExprLiteral` (where a converter is expected), it MUST emit:
+If a parser encounters `lowerName '(' ... ')'` inside a `mathExprLiteral` (where a converter is expected), it MUST emit:
 
 > `converter names must start with an uppercase letter but got '<name>'`
 
 ### 4.2 Enum vs. converter disambiguation
 
-`UPPER_ID` is a `converter` if followed by `LPAREN`, otherwise an `enumValue`. Implementations SHOULD use one-token lookahead. ANTLR4 adaptive prediction handles this without explicit predicates; PEG/Tree-sitter implementations should encode the lookahead.
+An `UPPER_RUN` is a `converter` name if followed by `LPAREN`, otherwise an `enumValue` — and only when the next token is not a `LOWER_RUN` (`Foo` is not an enum; `FOO` is). Implementations SHOULD use one-token lookahead. ANTLR4 adaptive prediction handles this without explicit predicates; PEG/Tree-sitter implementations should encode the lookahead.
 
 ### 4.3 Path context
 
@@ -404,12 +431,14 @@ Comments MUST NOT appear inside `STRING`, `BYTES`, or between the parts of a mul
 
 An implementation is _conformant_ if it:
 
-1. Accepts every statement in `test_cases.ottl` (the conformance suite, currently 230 cases).
-2. Rejects every input listed in the negative test suite (TODO: extract from `expression_test.go`).
+1. Accepts every input in the valid suites under `tests/conformance/` (`valid_*.ottl`, `lexical_valid_*.ottl`, `upstream_valid_*.ottl`).
+2. Rejects every input in the invalid suites (`lexical_invalid_*.ottl`, `lambda_invalid_*.ottl`, `upstream_invalid_*.ottl`).
 3. Produces the diagnostic messages specified in §4 with byte-accurate source positions.
 4. Round-trips an AST → text formatter such that re-parsing yields a structurally equal AST (whitespace insensitive).
 
-A _strictly_ conformant implementation additionally tokenizes identifiers using the maximal-run strategy of the reference Participle lexer (§2.5).
+A _strictly_ conformant implementation additionally reproduces the reference lexer's run-gluing behaviour for names (§2.5).
+
+The reference implementation is the oracle: [`tests/differential`](./tests/differential/README.md) runs the upstream parser, `OTTL.g4` and the Tree-sitter grammar over the conformance corpus, hand-written edge cases, mutations and random derivations from §3, and reports every disagreement. The divergences it tolerates are listed there and in §2.5, §3.4, §4 and §6.
 
 ---
 
@@ -421,10 +450,10 @@ This document is versioned independently of the upstream collector. Version incr
 - **Minor** — additions that all prior conformant inputs continue to parse identically (e.g. adding §6 file grammar).
 - **Major** — any change that could reject a previously accepted input.
 
-| Version | Date       | Notes                                                                   |
-| ------- | ---------- | ----------------------------------------------------------------------- |
-| 0.1     | 2026-05-10 | Initial draft from `OTTL.g4` and [`spec/grammar.go`][upstream-grammar]. |
-| 0.2     | 2026-10-25 | Add experimental lambda expressions (§2.5, §3.7, §4.9, `Lambda` type).  |
+| Version | Date       | Notes                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0.1     | 2026-05-10 | Initial draft from `OTTL.g4` and [`spec/grammar.go`][upstream-grammar].                                                                                                                                                                                                                                                                                                                           |
+| 0.2     | 2026-10-25 | Add experimental lambda expressions (§2.5, §3.7, §4.9, `Lambda` type). Correct §2–§3 to match the reference implementation as verified by differential testing: unsigned numeric tokens with a unary operator, `3.`, even-length bytes, Go string escapes, run-based identifiers (single-run fields and enums), `where` not reserved, keyword word boundaries, optional map commas, single `not`. |
 
 ---
 
@@ -451,13 +480,13 @@ header          ::= name version ottlSpecVersion sourceRef?
 functionEntry   ::= name kind parameters returnType description? examples? since?
 ```
 
-- `kind ∈ { "editor", "converter" }`. MUST agree with the casing of `name` per §4.1 (`editor` → `LOWER_ID`, `converter` → `UPPER_ID`).
-- `name` MUST be a valid `LOWER_ID` or `UPPER_ID` per §2.5.
+- `kind ∈ { "editor", "converter" }`. MUST agree with the casing of `name` per §4.1 (`editor` → `lowerName`, `converter` → `upperName`).
+- `name` MUST be a valid `lowerName` or `upperName` per §2.5.
 - `sourceRef` is a commit hash / tag of the upstream this registry was generated from, when applicable.
 
 ### 10.2 Parameter descriptors
 
-Each parameter has a `name` (valid `LOWER_ID`, §2.5), a `type` (§10.3), and flags:
+Each parameter has a `name` (valid `lowerName`, §2.5), a `type` (§10.3), and flags:
 
 | Flag       | Meaning                                                                |
 | ---------- | ---------------------------------------------------------------------- |
@@ -478,7 +507,7 @@ type        ::= atom
               | 'Getter<' valueAtom '>'           /* coercing reader */
               | 'Setter<' valueAtom '>'           /* editor target (lvalue) */
               | 'Enum<' enumName '>'              /* host-defined symbol set */
-              | 'FunctionRef'                     /* bare UPPER_ID argument, §3.2 */
+              | 'FunctionRef'                     /* bare upperName argument, §3.2 */
               | 'Lambda'                           /* lambda expression argument, §3.7 */
 
 atom        ::= valueAtom | pdataAtom

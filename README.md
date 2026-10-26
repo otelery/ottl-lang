@@ -38,13 +38,13 @@ enough to round-trip every test case in the upstream parser test
 suite, but APIs may change as the LSP and tooling mature. See
 [`CHANGELOG.md`](./CHANGELOG.md).
 
-| Component              | State    | Coverage                                   |
-| ---------------------- | -------- | ------------------------------------------ |
-| [`SPEC.md`](./SPEC.md) | Draft    | Lexical + syntactic + semantic constraints |
-| ANTLR4 grammar         | Working  | 373/373 conformance cases                  |
-| Tree-sitter            | Working  | 373/373 conformance cases                  |
-| TextMate               | Working  | All token classes from SPEC §2             |
-| LSP server             | Scaffold | Diagnostics, completion stub               |
+| Component              | State    | Coverage                                                                                 |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| [`SPEC.md`](./SPEC.md) | Draft    | Lexical + syntactic + semantic constraints                                               |
+| ANTLR4 grammar         | Working  | 292/292 valid, all invalid rejected; 0 unexpected differential disagreements vs upstream |
+| Tree-sitter            | Working  | same corpus; 0 unexpected differential disagreements vs upstream                         |
+| TextMate               | Working  | All token classes from SPEC §2                                                           |
+| LSP server             | Scaffold | Diagnostics, completion stub                                                             |
 
 ## Repository layout
 
